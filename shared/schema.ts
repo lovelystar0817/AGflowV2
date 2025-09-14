@@ -7,16 +7,28 @@ export const stylists = pgTable("stylists", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
   businessName: text("business_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Enhanced password validation schema
+const passwordSchema = z.string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[!@#$%^&*]/, "Password must contain at least one special character (!@#$%^&*)");
 
 export const insertStylistSchema = createInsertSchema(stylists).omit({
   id: true,
   createdAt: true,
   passwordHash: true,
 }).extend({
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  password: passwordSchema,
 });
 
 export type InsertStylist = z.infer<typeof insertStylistSchema>;

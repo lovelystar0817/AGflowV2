@@ -52,6 +52,8 @@ export class DatabaseStorage implements IStorage {
       .insert(stylists)
       .values({
         email: insertStylist.email,
+        firstName: insertStylist.firstName,
+        lastName: insertStylist.lastName,
         passwordHash: insertStylist.password,
         businessName: insertStylist.businessName,
       })
