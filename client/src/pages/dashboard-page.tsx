@@ -210,6 +210,14 @@ export default function DashboardPage() {
                   <span>Clients</span>
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="services" 
+                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  data-testid="tab-services"
+                >
+                  <Scissors className="h-4 w-4" />
+                  <span>Services</span>
+                </TabsTrigger>
+                <TabsTrigger 
                   value="coupons" 
                   className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-coupons"
@@ -253,6 +261,28 @@ export default function DashboardPage() {
               {/* Clients Tab */}
               <TabsContent value="clients" className="mt-0">
                 <ClientsPage />
+              </TabsContent>
+
+              {/* Services Tab */}
+              <TabsContent value="services" className="mt-0">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-card-foreground">Service Management</h2>
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-add-service">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add New Service
+                  </Button>
+                </div>
+                
+                {/* Services will be implemented here */}
+                <div className="bg-muted rounded-lg p-8 text-center">
+                  <div className="max-w-sm mx-auto">
+                    <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Scissors className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-medium text-card-foreground mb-2">Manage Your Services</h3>
+                    <p className="text-muted-foreground">Create and manage the services you offer with custom pricing.</p>
+                  </div>
+                </div>
               </TabsContent>
 
               {/* Coupons Tab */}
