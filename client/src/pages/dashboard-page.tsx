@@ -5,7 +5,39 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
-import { isProfileComplete } from "@shared/schema";
+import { isProfileComplete, serviceFormSchema, type StylistService } from "@shared/schema";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Calendar, 
   Users, 
@@ -20,7 +52,9 @@ import {
   CalendarCheck,
   Plus,
   UserPlus,
-  Share
+  Share,
+  Edit,
+  Trash2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,12 +64,138 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
+type ServiceFormData = z.infer<typeof serviceFormSchema>;
+
 export default function DashboardPage() {
   const { user, logoutMutation } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("calendar");
   const [showProfileCompletion, setShowProfileCompletion] = useState(
     user ? !isProfileComplete(user) : false
   );
+
+  // Services management state
+  const [editingService, setEditingService] = useState<StylistService | null>(null);
+  const [isServiceDialogOpen, setIsServiceDialogOpen] = useState(false);
+  const [deleteServiceId, setDeleteServiceId] = useState<number | null>(null);
+
+  // Services query
+  const { data: services = [], isLoading: servicesLoading } = useQuery<StylistService[]>({
+    queryKey: ["/api/services"],
+  });
+
+  // Service form
+  const serviceForm = useForm<ServiceFormData>({
+    resolver: zodResolver(serviceFormSchema),
+    defaultValues: {
+      serviceName: "",
+      price: 0,
+      isCustom: false,
+    },
+  });
+
+  // Service mutations
+  const createServiceMutation = useMutation({
+    mutationFn: (data: ServiceFormData) => 
+      apiRequest("POST", "/api/services", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      setIsServiceDialogOpen(false);
+      serviceForm.reset();
+      toast({
+        title: "Success",
+        description: "Service created successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create service",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateServiceMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ServiceFormData }) =>
+      apiRequest("PATCH", `/api/services/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      setIsServiceDialogOpen(false);
+      setEditingService(null);
+      serviceForm.reset();
+      toast({
+        title: "Success",
+        description: "Service updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update service",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteServiceMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("DELETE", `/api/services/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      setDeleteServiceId(null);
+      toast({
+        title: "Success",
+        description: "Service deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete service",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Service form handlers
+  const handleServiceSubmit = (data: ServiceFormData) => {
+    if (editingService) {
+      updateServiceMutation.mutate({ id: editingService.id, data });
+    } else {
+      createServiceMutation.mutate(data);
+    }
+  };
+
+  const handleEditService = (service: StylistService) => {
+    setEditingService(service);
+    serviceForm.reset({
+      serviceName: service.serviceName,
+      price: parseFloat(service.price),
+      isCustom: service.isCustom,
+    });
+    setIsServiceDialogOpen(true);
+  };
+
+  const handleAddNewService = () => {
+    setEditingService(null);
+    serviceForm.reset({
+      serviceName: "",
+      price: 0,
+      isCustom: false,
+    });
+    setIsServiceDialogOpen(true);
+  };
+
+  const handleDeleteService = (serviceId: number) => {
+    setDeleteServiceId(serviceId);
+  };
+
+  const confirmDeleteService = () => {
+    if (deleteServiceId) {
+      deleteServiceMutation.mutate(deleteServiceId);
+    }
+  };
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -267,22 +427,97 @@ export default function DashboardPage() {
               <TabsContent value="services" className="mt-0">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-card-foreground">Service Management</h2>
-                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-add-service">
+                  <Button 
+                    onClick={handleAddNewService}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground" 
+                    data-testid="button-add-service"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add New Service
                   </Button>
                 </div>
                 
-                {/* Services will be implemented here */}
-                <div className="bg-muted rounded-lg p-8 text-center">
-                  <div className="max-w-sm mx-auto">
-                    <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Scissors className="h-8 w-8 text-primary" />
+                {/* Services List */}
+                {servicesLoading ? (
+                  <div className="bg-muted rounded-lg p-8 text-center">
+                    <div className="max-w-sm mx-auto">
+                      <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Scissors className="h-8 w-8 text-primary animate-pulse" />
+                      </div>
+                      <h3 className="text-lg font-medium text-card-foreground mb-2">Loading Services...</h3>
                     </div>
-                    <h3 className="text-lg font-medium text-card-foreground mb-2">Manage Your Services</h3>
-                    <p className="text-muted-foreground">Create and manage the services you offer with custom pricing.</p>
                   </div>
-                </div>
+                ) : services.length === 0 ? (
+                  <div className="bg-muted rounded-lg p-8 text-center">
+                    <div className="max-w-sm mx-auto">
+                      <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Scissors className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-medium text-card-foreground mb-2">No Services Yet</h3>
+                      <p className="text-muted-foreground mb-4">Create your first service to get started with pricing and service management.</p>
+                      <Button 
+                        onClick={handleAddNewService}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                        data-testid="button-add-first-service"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Your First Service
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {services.map((service) => (
+                      <Card key={service.id} className="border border-border">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3">
+                                <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                  <Scissors className="h-5 w-5 text-primary" />
+                                </div>
+                                <div>
+                                  <h3 className="font-medium text-card-foreground" data-testid={`service-name-${service.id}`}>
+                                    {service.serviceName}
+                                  </h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    {service.isCustom ? "Custom Service" : "Standard Service"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="text-right">
+                                <p className="font-semibold text-lg text-card-foreground" data-testid={`service-price-${service.id}`}>
+                                  ${parseFloat(service.price).toFixed(2)}
+                                </p>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditService(service)}
+                                  data-testid={`button-edit-service-${service.id}`}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteService(service.id)}
+                                  className="text-destructive hover:text-destructive"
+                                  data-testid={`button-delete-service-${service.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
 
               {/* Coupons Tab */}
@@ -329,6 +564,103 @@ export default function DashboardPage() {
             </div>
           </Tabs>
         </Card>
+
+        {/* Service Management Dialog */}
+        <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>
+                {editingService ? "Edit Service" : "Add New Service"}
+              </DialogTitle>
+            </DialogHeader>
+            <Form {...serviceForm}>
+              <form onSubmit={serviceForm.handleSubmit(handleServiceSubmit)} className="space-y-4">
+                <FormField
+                  control={serviceForm.control}
+                  name="serviceName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service Name</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="e.g., Women's Haircut" 
+                          {...field} 
+                          data-testid="input-service-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={serviceForm.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price ($USD)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number"
+                          placeholder="0.00"
+                          step="0.01"
+                          min="0.01"
+                          max="9999.99"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          data-testid="input-service-price"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsServiceDialogOpen(false)}
+                    data-testid="button-cancel-service"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={createServiceMutation.isPending || updateServiceMutation.isPending}
+                    data-testid="button-save-service"
+                  >
+                    {createServiceMutation.isPending || updateServiceMutation.isPending 
+                      ? "Saving..." 
+                      : editingService ? "Update Service" : "Create Service"
+                    }
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deleteServiceId} onOpenChange={() => setDeleteServiceId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Service</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this service? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteService}
+                disabled={deleteServiceMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                data-testid="button-confirm-delete"
+              >
+                {deleteServiceMutation.isPending ? "Deleting..." : "Delete Service"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
