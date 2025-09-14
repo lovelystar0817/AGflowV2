@@ -1,4 +1,4 @@
-import { stylists, clients, type Stylist, type InsertStylist, type Client, type InsertClient } from "@shared/schema";
+import { stylists, clients, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import session from "express-session";
@@ -11,6 +11,7 @@ export interface IStorage {
   getStylist(id: string): Promise<Stylist | undefined>;
   getStylistByEmail(email: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
+  updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist>;
   
   // Client management
   getClientsByStylist(stylistId: string): Promise<Client[]>;
@@ -57,6 +58,24 @@ export class DatabaseStorage implements IStorage {
         passwordHash: insertStylist.password,
         businessName: insertStylist.businessName,
       })
+      .returning();
+    return stylist;
+  }
+
+  async updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist> {
+    const [stylist] = await db
+      .update(stylists)
+      .set({
+        phone: profile.phone,
+        location: profile.location,
+        servicesOffered: profile.servicesOffered,
+        bio: profile.bio,
+        businessHours: profile.businessHours,
+        yearsOfExperience: profile.yearsOfExperience,
+        instagramHandle: profile.instagramHandle,
+        bookingLink: profile.bookingLink,
+      })
+      .where(eq(stylists.id, id))
       .returning();
     return stylist;
   }
