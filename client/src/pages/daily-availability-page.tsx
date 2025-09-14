@@ -34,7 +34,8 @@ const generateTimeSlots = (): string[] => {
 const TIME_SLOTS = generateTimeSlots();
 
 export default function DailyAvailabilityPage() {
-  const { date } = useParams<{ date: string }>();
+  const params = useParams();
+  const date = params.date;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
