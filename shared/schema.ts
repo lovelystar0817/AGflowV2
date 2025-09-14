@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, uuid, varchar, json, integer, serial, decimal, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, varchar, json, integer, serial, decimal, boolean, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -133,6 +133,58 @@ export const insertClientSchema = createInsertSchema(clients).omit({
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clients.$inferSelect;
+
+// Stylist Availability table for daily time ranges
+export const stylistAvailability = pgTable("stylist_availability", {
+  id: serial("id").primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  date: date("date").notNull(),
+  isOpen: boolean("is_open").notNull().default(true),
+  timeRanges: json("time_ranges").$type<{ start: string; end: string }[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  stylistDateUnique: uniqueIndex("stylist_availability_u_stylist_date").on(table.stylistId, table.date),
+}));
+
+// Time range validation schemas - enforces 30-minute increments and proper time comparison
+const parseTimeToMinutes = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+export const timeRangeSchema = z.object({
+  start: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM with zero-padded hours)"),
+  end: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM with zero-padded hours)"),
+}).refine((range) => {
+  const startMinutes = parseTimeToMinutes(range.start);
+  const endMinutes = parseTimeToMinutes(range.end);
+  return endMinutes > startMinutes;
+}, {
+  message: "End time must be after start time",
+}).refine((range) => {
+  const startMinutes = parseTimeToMinutes(range.start) % 30;
+  const endMinutes = parseTimeToMinutes(range.end) % 30;
+  return startMinutes === 0 && endMinutes === 0;
+}, {
+  message: "Times must be in 30-minute increments (e.g., 09:00, 09:30, 10:00)",
+});
+
+export const availabilitySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+  isOpen: z.boolean(),
+  timeRanges: z.array(timeRangeSchema).optional(),
+});
+
+export const insertStylistAvailabilitySchema = createInsertSchema(stylistAvailability).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertStylistAvailability = z.infer<typeof insertStylistAvailabilitySchema>;
+export type StylistAvailability = typeof stylistAvailability.$inferSelect;
+export type TimeRange = z.infer<typeof timeRangeSchema>;
 
 // Legacy exports for compatibility with auth blueprint
 export const users = stylists;
