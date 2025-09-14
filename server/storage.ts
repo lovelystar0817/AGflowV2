@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type TimeRange, generateHourlySlots, filterAvailableSlots, getSlotEndTime } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import session from "express-session";
@@ -287,8 +287,8 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     
-    // Generate all possible hourly slots from time ranges
-    const allSlots = generateHourlySlots(availability.timeRanges);
+    // Generate all possible 30-minute slots from time ranges
+    const allSlots = generate30MinuteSlots(availability.timeRanges);
     
     // Get booked slots for this date
     const bookedAppointments = await this.getAppointmentsByStylist(stylistId, date);
@@ -308,8 +308,8 @@ export class DatabaseStorage implements IStorage {
       return { total: 0, available: 0 };
     }
     
-    // Generate all possible hourly slots from time ranges
-    const allSlots = generateHourlySlots(availability.timeRanges);
+    // Generate all possible 30-minute slots from time ranges
+    const allSlots = generate30MinuteSlots(availability.timeRanges);
     const totalSlots = allSlots.length;
     
     // Get available slots
