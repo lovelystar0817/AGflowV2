@@ -434,10 +434,16 @@ export default function DashboardPage() {
         const isNotSet = !todaysAvailability || (todaysSlots?.total === 0);
         
         if (isNotSet) {
-          return "No Hours Set — Click to Add";
+          return "Not Set Yet — Click to Add";
         } else {
           const availableSlots = todaysSlots?.available || 0;
-          return `${availableSlots} Slot${availableSlots !== 1 ? 's' : ''} Open`;
+          const totalSlots = todaysSlots?.total || 0;
+          
+          if (totalSlots > 0 && availableSlots === 0) {
+            return "Fully Booked";
+          } else {
+            return `Open Time Slots Today: ${availableSlots}`;
+          }
         }
       })(),
       icon: Clock,
@@ -448,7 +454,14 @@ export default function DashboardPage() {
         if (isNotSet) {
           return "Click to set your availability for today";
         } else {
-          return "Number of unbooked time slots available today. Click to edit.";
+          const availableSlots = todaysSlots?.available || 0;
+          const totalSlots = todaysSlots?.total || 0;
+          
+          if (totalSlots > 0 && availableSlots === 0) {
+            return "All time slots are booked for today. Click to edit availability.";
+          } else {
+            return "Number of unbooked time slots available today. Click to edit.";
+          }
         }
       })(),
       isLoading: todaysSlotsLoading || todaysAvailabilityLoading,
@@ -583,7 +596,7 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between mt-1">
                               <p 
                                 className={`text-card-foreground ${
-                                  stat.title === "Open Time Slots Today" && stat.value?.includes("No Hours Set") 
+                                  stat.title === "Open Time Slots Today" && (stat.value?.includes("Not Set Yet") || stat.value?.includes("Fully Booked"))
                                     ? "text-lg font-medium" 
                                     : "text-2xl font-bold"
                                 }`} 

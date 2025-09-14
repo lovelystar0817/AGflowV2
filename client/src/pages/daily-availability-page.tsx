@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ArrowLeft, Plus, X, Clock, Edit, Trash2 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { TimeRange } from "@shared/schema";
@@ -221,6 +222,37 @@ export default function DailyAvailabilityPage() {
     removeTimeRange(index);
   };
 
+  // Check if a time slot is in the past
+  const isTimeSlotPast = (time24: string): boolean => {
+    if (!date) return false;
+    
+    const selectedDate = parseISO(date);
+    const currentDate = new Date();
+    
+    // Only apply past logic for today's date
+    if (!isSameDay(selectedDate, currentDate)) {
+      return false;
+    }
+    
+    // Use Intl.DateTimeFormat() for timezone-aware time comparison
+    const formatter = new Intl.DateTimeFormat(undefined, { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    });
+    
+    const parts = formatter.formatToParts(currentDate);
+    const currentHour = parseInt(parts.find(part => part.type === 'hour')?.value || '0', 10);
+    const currentMinute = parseInt(parts.find(part => part.type === 'minute')?.value || '0', 10);
+    
+    // Parse the time slot
+    const [slotHour, slotMinute] = time24.split(':').map(Number);
+    
+    // Check if the slot time is before current time
+    return (slotHour < currentHour || 
+            (slotHour === currentHour && slotMinute < currentMinute));
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4" data-testid="loading-availability">
@@ -393,47 +425,66 @@ export default function DailyAvailabilityPage() {
             )}
 
             {/* Time Slot Grid - Grouped by Period */}
-            <div className="space-y-6">
-              {/* Morning */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h5 className="font-semibold text-amber-700 dark:text-amber-400">Morning</h5>
-                  <Badge variant="outline" className="text-xs">6:00 AM – 11:30 AM</Badge>
+            <TooltipProvider>
+              <div className="space-y-6">
+                {/* Morning */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h5 className="font-semibold text-amber-700 dark:text-amber-400">Morning</h5>
+                    <Badge variant="outline" className="text-xs">6:00 AM – 11:30 AM</Badge>
+                  </div>
+                  <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                    {TIME_SLOTS.filter(slot => slot.period === 'morning').map((slot) => {
+                      const isInRange = isTimeSlotInRange(slot.time24);
+                      const isInSelection = isTimeSlotInSelection(slot.time24);
+                      const isStartTime = selectedStart === slot.time24;
+                      const isEndTime = selectedEnd === slot.time24;
+                      const isPast = isTimeSlotPast(slot.time24);
+                      
+                      const timeSlotButton = (
+                        <Button
+                          key={slot.time24}
+                          variant={
+                            isInRange ? "default" : 
+                            isStartTime ? "secondary" : 
+                            isEndTime ? "secondary" :
+                            "outline"
+                          }
+                          size="sm"
+                          className={`h-9 text-xs font-medium ${
+                            isInSelection ? "bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600" : ""
+                          } ${
+                            isInRange ? "cursor-not-allowed opacity-50" : ""
+                          } ${
+                            isPast ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60" : ""
+                          } ${
+                            isStartTime || isEndTime ? "ring-2 ring-blue-500 dark:ring-blue-400" : ""
+                          }`}
+                          onClick={() => !isPast && handleTimeSlotClick(slot.time24)}
+                          disabled={isInRange || isPast}
+                          data-testid={`button-time-${slot.time24.replace(':', '-')}`}
+                        >
+                          {slot.time12}
+                        </Button>
+                      );
+
+                      return isPast ? (
+                        <Tooltip key={slot.time24}>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">
+                              {timeSlotButton}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Time has passed</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        timeSlotButton
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                  {TIME_SLOTS.filter(slot => slot.period === 'morning').map((slot) => {
-                    const isInRange = isTimeSlotInRange(slot.time24);
-                    const isInSelection = isTimeSlotInSelection(slot.time24);
-                    const isStartTime = selectedStart === slot.time24;
-                    const isEndTime = selectedEnd === slot.time24;
-                    
-                    return (
-                      <Button
-                        key={slot.time24}
-                        variant={
-                          isInRange ? "default" : 
-                          isStartTime ? "secondary" : 
-                          isEndTime ? "secondary" :
-                          "outline"
-                        }
-                        size="sm"
-                        className={`h-9 text-xs font-medium ${
-                          isInSelection ? "bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600" : ""
-                        } ${
-                          isInRange ? "cursor-not-allowed opacity-50" : ""
-                        } ${
-                          isStartTime || isEndTime ? "ring-2 ring-blue-500 dark:ring-blue-400" : ""
-                        }`}
-                        onClick={() => handleTimeSlotClick(slot.time24)}
-                        disabled={isInRange}
-                        data-testid={`button-time-${slot.time24.replace(':', '-')}`}
-                      >
-                        {slot.time12}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
 
               <Separator />
 
@@ -449,8 +500,9 @@ export default function DailyAvailabilityPage() {
                     const isInSelection = isTimeSlotInSelection(slot.time24);
                     const isStartTime = selectedStart === slot.time24;
                     const isEndTime = selectedEnd === slot.time24;
+                    const isPast = isTimeSlotPast(slot.time24);
                     
-                    return (
+                    const timeSlotButton = (
                       <Button
                         key={slot.time24}
                         variant={
@@ -465,14 +517,31 @@ export default function DailyAvailabilityPage() {
                         } ${
                           isInRange ? "cursor-not-allowed opacity-50" : ""
                         } ${
+                          isPast ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60" : ""
+                        } ${
                           isStartTime || isEndTime ? "ring-2 ring-blue-500 dark:ring-blue-400" : ""
                         }`}
-                        onClick={() => handleTimeSlotClick(slot.time24)}
-                        disabled={isInRange}
+                        onClick={() => !isPast && handleTimeSlotClick(slot.time24)}
+                        disabled={isInRange || isPast}
                         data-testid={`button-time-${slot.time24.replace(':', '-')}`}
                       >
                         {slot.time12}
                       </Button>
+                    );
+
+                    return isPast ? (
+                      <Tooltip key={slot.time24}>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">
+                            {timeSlotButton}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Time has passed</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      timeSlotButton
                     );
                   })}
                 </div>
@@ -492,8 +561,9 @@ export default function DailyAvailabilityPage() {
                     const isInSelection = isTimeSlotInSelection(slot.time24);
                     const isStartTime = selectedStart === slot.time24;
                     const isEndTime = selectedEnd === slot.time24;
+                    const isPast = isTimeSlotPast(slot.time24);
                     
-                    return (
+                    const timeSlotButton = (
                       <Button
                         key={slot.time24}
                         variant={
@@ -508,19 +578,37 @@ export default function DailyAvailabilityPage() {
                         } ${
                           isInRange ? "cursor-not-allowed opacity-50" : ""
                         } ${
+                          isPast ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60" : ""
+                        } ${
                           isStartTime || isEndTime ? "ring-2 ring-blue-500 dark:ring-blue-400" : ""
                         }`}
-                        onClick={() => handleTimeSlotClick(slot.time24)}
-                        disabled={isInRange}
+                        onClick={() => !isPast && handleTimeSlotClick(slot.time24)}
+                        disabled={isInRange || isPast}
                         data-testid={`button-time-${slot.time24.replace(':', '-')}`}
                       >
                         {slot.time12}
                       </Button>
                     );
+
+                    return isPast ? (
+                      <Tooltip key={slot.time24}>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">
+                            {timeSlotButton}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Time has passed</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      timeSlotButton
+                    );
                   })}
                 </div>
               </div>
-            </div>
+              </div>
+            </TooltipProvider>
 
             {selectedStart && !selectedEnd && (
               <p className="text-sm text-muted-foreground" data-testid="text-selection-help">
