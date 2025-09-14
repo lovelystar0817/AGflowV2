@@ -9,12 +9,14 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import DashboardPage from "@/pages/dashboard-page";
 import ProfileSetupPage from "@/pages/profile-setup-page";
+import DailyAvailabilityPage from "@/pages/daily-availability-page";
 
 function Router() {
   return (
     <Switch>
       <ProtectedRoute path="/" component={DashboardPage} />
       <ProtectedRoute path="/profile-setup" component={ProfileSetupPage} />
+      <ProtectedRoute path="/dashboard/calendar/:date" component={DailyAvailabilityPage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
