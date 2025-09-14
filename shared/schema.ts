@@ -14,6 +14,7 @@ export const stylists = pgTable("stylists", {
 export const insertStylistSchema = createInsertSchema(stylists).omit({
   id: true,
   createdAt: true,
+  passwordHash: true,
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
