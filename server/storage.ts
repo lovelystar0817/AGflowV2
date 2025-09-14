@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type TimeRange, generateHourlySlots, filterAvailableSlots, getSlotEndTime } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import session from "express-session";
@@ -31,6 +31,17 @@ export interface IStorage {
   getStylistAvailability(stylistId: string, date: string): Promise<StylistAvailability | undefined>;
   setStylistAvailability(availability: InsertStylistAvailability): Promise<StylistAvailability>;
   updateStylistAvailability(stylistId: string, date: string, updates: { isOpen?: boolean; timeRanges?: { start: string; end: string }[] }): Promise<StylistAvailability>;
+  
+  // Appointment management
+  getAppointmentsByStylist(stylistId: string, date?: string): Promise<Appointment[]>;
+  getAppointment(id: string): Promise<Appointment | undefined>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment>;
+  deleteAppointment(id: string): Promise<void>;
+  
+  // Slot management
+  getAvailableSlots(stylistId: string, date: string): Promise<string[]>;
+  getSlotsCount(stylistId: string, date: string): Promise<{ total: number; available: number }>;
   
   sessionStore: session.Store;
   
@@ -187,14 +198,22 @@ export class DatabaseStorage implements IStorage {
 
   async setStylistAvailability(availability: InsertStylistAvailability): Promise<StylistAvailability> {
     // Use atomic upsert to avoid race conditions
+    const timeRanges: TimeRange[] = (availability.timeRanges as TimeRange[]) ?? [];
+    const payload: typeof stylistAvailability.$inferInsert = {
+      stylistId: availability.stylistId,
+      date: availability.date,
+      isOpen: availability.isOpen,
+      timeRanges,
+    };
+    
     const [result] = await db
       .insert(stylistAvailability)
-      .values(availability)
+      .values(payload)
       .onConflictDoUpdate({
         target: [stylistAvailability.stylistId, stylistAvailability.date],
         set: {
-          isOpen: availability.isOpen,
-          timeRanges: availability.timeRanges,
+          isOpen: payload.isOpen,
+          timeRanges: payload.timeRanges,
           updatedAt: new Date(),
         },
       })
@@ -214,6 +233,92 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedAvailability;
+  }
+
+  // Appointment management methods
+  async getAppointmentsByStylist(stylistId: string, date?: string): Promise<Appointment[]> {
+    if (date) {
+      return await db
+        .select()
+        .from(appointments)
+        .where(and(eq(appointments.stylistId, stylistId), eq(appointments.date, date)));
+    }
+    
+    return await db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.stylistId, stylistId));
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    const [appointment] = await db.select().from(appointments).where(eq(appointments.id, id));
+    return appointment || undefined;
+  }
+
+  async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    const [newAppointment] = await db.insert(appointments).values(appointment).returning();
+    return newAppointment;
+  }
+
+  async updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment> {
+    const [updatedAppointment] = await db
+      .update(appointments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(appointments.id, id))
+      .returning();
+    
+    if (!updatedAppointment) {
+      throw new Error(`No appointment found with id ${id}`);
+    }
+    
+    return updatedAppointment;
+  }
+
+  async deleteAppointment(id: string): Promise<void> {
+    await db.delete(appointments).where(eq(appointments.id, id));
+  }
+
+  // Slot management methods
+  async getAvailableSlots(stylistId: string, date: string): Promise<string[]> {
+    // Get stylist availability for the date
+    const availability = await this.getStylistAvailability(stylistId, date);
+    
+    if (!availability || !availability.isOpen || !availability.timeRanges || availability.timeRanges.length === 0) {
+      return [];
+    }
+    
+    // Generate all possible hourly slots from time ranges
+    const allSlots = generateHourlySlots(availability.timeRanges);
+    
+    // Get booked slots for this date
+    const bookedAppointments = await this.getAppointmentsByStylist(stylistId, date);
+    const bookedSlots = bookedAppointments
+      .filter(app => app.status === 'confirmed')
+      .map(app => app.startTime);
+    
+    // Filter out booked slots
+    return filterAvailableSlots(allSlots, bookedSlots);
+  }
+
+  async getSlotsCount(stylistId: string, date: string): Promise<{ total: number; available: number }> {
+    // Get stylist availability for the date
+    const availability = await this.getStylistAvailability(stylistId, date);
+    
+    if (!availability || !availability.isOpen || !availability.timeRanges || availability.timeRanges.length === 0) {
+      return { total: 0, available: 0 };
+    }
+    
+    // Generate all possible hourly slots from time ranges
+    const allSlots = generateHourlySlots(availability.timeRanges);
+    const totalSlots = allSlots.length;
+    
+    // Get available slots
+    const availableSlots = await this.getAvailableSlots(stylistId, date);
+    
+    return {
+      total: totalSlots,
+      available: availableSlots.length
+    };
   }
 
   // Legacy methods for compatibility with auth blueprint
