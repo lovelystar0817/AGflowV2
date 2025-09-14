@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, uuid, varchar, json, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, varchar, json, integer, serial, decimal, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -24,6 +24,16 @@ export const stylists = pgTable("stylists", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Stylist Services table for individual services with pricing
+export const stylistServices = pgTable("stylist_services", {
+  id: serial("id").primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  serviceName: text("service_name").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  isCustom: boolean("is_custom").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Enhanced password validation schema
 const passwordSchema = z.string()
   .min(8, "Password must be at least 8 characters")
@@ -45,6 +55,21 @@ export const insertStylistSchema = createInsertSchema(stylists).omit({
 export type InsertStylist = z.infer<typeof insertStylistSchema>;
 export type Stylist = typeof stylists.$inferSelect;
 
+// Stylist Services schemas
+export const insertStylistServiceSchema = createInsertSchema(stylistServices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const serviceSchema = z.object({
+  serviceName: z.string().min(1, "Service name is required").max(100, "Service name must be 100 characters or less"),
+  price: z.number().positive("Price must be greater than 0").max(9999.99, "Price must be less than $10,000"),
+  isCustom: z.boolean().default(false),
+});
+
+export type InsertStylistService = z.infer<typeof insertStylistServiceSchema>;
+export type StylistService = typeof stylistServices.$inferSelect;
+
 // Business Hours validation schema
 const businessHoursSchema = z.record(z.object({
   open: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
@@ -56,7 +81,7 @@ const businessHoursSchema = z.record(z.object({
 export const updateProfileSchema = z.object({
   phone: z.string().min(1, "Phone number is required").regex(/^[\d\s\-\(\)\+]+$/, "Invalid phone number format"),
   location: z.string().min(1, "Location is required"),
-  servicesOffered: z.array(z.string()).min(1, "At least one service is required"),
+  services: z.array(serviceSchema).min(1, "At least one service is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
   yearsOfExperience: z.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience must be 50 or less"),
