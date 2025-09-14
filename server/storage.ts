@@ -1,4 +1,4 @@
-import { stylists, type Stylist, type InsertStylist } from "@shared/schema";
+import { stylists, clients, type Stylist, type InsertStylist, type Client, type InsertClient } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import session from "express-session";
@@ -11,6 +11,14 @@ export interface IStorage {
   getStylist(id: string): Promise<Stylist | undefined>;
   getStylistByEmail(email: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
+  
+  // Client management
+  getClientsByStylist(stylistId: string): Promise<Client[]>;
+  getClient(id: string): Promise<Client | undefined>;
+  createClient(client: InsertClient): Promise<Client>;
+  updateClient(id: string, updates: Partial<InsertClient>): Promise<Client>;
+  deleteClient(id: string): Promise<void>;
+  
   sessionStore: session.Store;
   
   // Legacy method names for compatibility with auth blueprint
@@ -49,6 +57,34 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return stylist;
+  }
+
+  // Client management methods
+  async getClientsByStylist(stylistId: string): Promise<Client[]> {
+    return await db.select().from(clients).where(eq(clients.stylistId, stylistId));
+  }
+
+  async getClient(id: string): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(eq(clients.id, id));
+    return client || undefined;
+  }
+
+  async createClient(insertClient: InsertClient): Promise<Client> {
+    const [client] = await db.insert(clients).values(insertClient).returning();
+    return client;
+  }
+
+  async updateClient(id: string, updates: Partial<InsertClient>): Promise<Client> {
+    const [client] = await db
+      .update(clients)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(clients.id, id))
+      .returning();
+    return client;
+  }
+
+  async deleteClient(id: string): Promise<void> {
+    await db.delete(clients).where(eq(clients.id, id));
   }
 
   // Legacy methods for compatibility with auth blueprint
