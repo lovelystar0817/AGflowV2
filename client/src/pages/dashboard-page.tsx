@@ -442,7 +442,7 @@ export default function DashboardPage() {
           if (totalSlots > 0 && availableSlots === 0) {
             return "Fully Booked";
           } else {
-            return `Open Time Slots Today: ${availableSlots}`;
+            return availableSlots.toString();
           }
         }
       })(),
