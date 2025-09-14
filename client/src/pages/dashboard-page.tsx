@@ -440,9 +440,9 @@ export default function DashboardPage() {
           const totalSlots = todaysSlots?.total || 0;
           
           if (totalSlots > 0 && availableSlots === 0) {
-            return "Fully Booked";
+            return "0 (All Past)";
           } else {
-            return availableSlots.toString();
+            return `${availableSlots}`;
           }
         }
       })(),
