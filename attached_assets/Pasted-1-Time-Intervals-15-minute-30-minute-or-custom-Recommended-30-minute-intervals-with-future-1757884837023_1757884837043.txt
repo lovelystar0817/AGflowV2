@@ -1,0 +1,86 @@
+1. Time Intervals: 15-minute, 30-minute, or custom?
+
+✅ Recommended: 30-minute intervals, with future option to customize.
+
+Why:
+
+30-min is the sweet spot for most salon services
+
+Keeps UI clean (e.g., 10:00, 10:30, 11:00…)
+
+Most booking systems (Square, Vagaro) default to 30 min
+
+Easier to build now, can add advanced options later
+
+Optional later: Let stylists define default interval in their profile (15/30/60)
+
+✅ 2. Business Hours Constraint: Should availability be limited to them?
+
+✅ Recommended: Yes, but soft constraint, not enforced.
+
+What to do:
+
+Let stylists set their business hours in /profile-setup
+
+Show a subtle indicator (e.g. ⚠️ “Outside your usual hours”) if they pick times outside those bounds
+
+Don’t prevent it — stylists are independent and may have exceptions
+
+Why:
+
+Gives guidance without friction
+
+Keeps flexibility for emergencies or one-off late appointments
+
+✅ 3. Default Weekly Availability for New Stylists?
+
+✅ Yes, but only as a suggestion — not auto-applied.
+
+What to do:
+
+On first calendar visit, if stylist has no availability set:
+
+Offer to “Use a default weekly schedule?”
+
+Tues–Sat, 10:00 AM – 6:00 PM
+
+If they accept → create entries for the next 7 days
+
+If not → leave it empty and let them fill manually
+
+Why:
+
+Reduces friction
+
+Avoids confusion if a stylist forgets to set availability
+
+Avoids accidental bookings when they're not ready
+
+✅ 4. Appointment Integration — How Will This Work Later?
+
+This is the big one. You need to design availability in a way that bookings can slot into it cleanly.
+
+✅ Recommendation: Store availability as open windows (start + end)
+Then later, use service duration + buffer to slice it into actual slots.
+
+Future booking logic will look like:
+- Availability: 10:00 AM – 2:00 PM
+- Client wants a 60-min haircut
+- Buffer: 15 mins
+→ Bookable slots: 10:00, 11:15, 12:30
+
+
+So:
+
+DO NOT store every possible slot
+
+DO store flexible ranges
+
+DO allow overlapping bookings later if needed (for stylists with assistants)
+
+✅ TL;DR — Final Decisions
+Question	Answer
+Time Intervals	30-min default (configurable later)
+Business Hour Constraints	Soft warning only
+Default Weekly Schedule	Offer suggestion on first visit
+Appointment Integration	Store time ranges, not individual slots — use services to generate slots later
