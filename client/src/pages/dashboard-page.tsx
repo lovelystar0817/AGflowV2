@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
+import { ProfileCompletionCard } from "@/components/profile-completion-card";
+import { isProfileComplete } from "@shared/schema";
 import { 
   Calendar, 
   Users, 
@@ -31,6 +33,9 @@ import {
 export default function DashboardPage() {
   const { user, logoutMutation } = useAuth();
   const [activeTab, setActiveTab] = useState("calendar");
+  const [showProfileCompletion, setShowProfileCompletion] = useState(
+    user ? !isProfileComplete(user) : false
+  );
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -145,6 +150,13 @@ export default function DashboardPage() {
 
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Profile Completion Card */}
+        {user && showProfileCompletion && (
+          <ProfileCompletionCard 
+            onDismiss={() => setShowProfileCompletion(false)}
+          />
+        )}
+
         {/* Welcome Section */}
         <div className="mb-8">
           <div className="bg-gradient-to-r from-primary to-secondary rounded-lg p-6 text-primary-foreground">
