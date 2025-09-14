@@ -89,6 +89,8 @@ export default function DailyAvailabilityPage() {
         title: "Availability updated",
         description: "Your availability has been saved successfully.",
       });
+      // Automatically navigate back to dashboard
+      setLocation('/');
     },
     onError: (error) => {
       console.error('Error updating availability:', error);
