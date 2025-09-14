@@ -141,6 +141,11 @@ export default function DashboardPage() {
     queryKey: [`/api/slots-count/${today}`],
   });
 
+  // Today's availability status query
+  const { data: todaysAvailability, isLoading: todaysAvailabilityLoading } = useQuery<{ isOpen: boolean; timeRanges?: any[] }>({
+    queryKey: [`/api/availability/${today}`],
+  });
+
   // New bookings today (appointments created today)
   const { data: allAppointments = [], isLoading: allAppointmentsLoading } = useQuery<any[]>({
     queryKey: ["/api/appointments"],
@@ -391,6 +396,14 @@ export default function DashboardPage() {
     setCurrentMonth(new Date());
   };
 
+  // Navigate to Calendar tab with today's date selected
+  const handleNavigateToTodayAvailability = () => {
+    const today = new Date();
+    setActiveTab("calendar");
+    setCurrentMonth(today);
+    setSelectedDate(today);
+  };
+
   const [, setLocation] = useLocation();
 
   const handleDateClick = (date: Date) => {
@@ -415,12 +428,33 @@ export default function DashboardPage() {
     },
     {
       title: "Open Time Slots Today",
-      value: todaysSlotsLoading ? "..." : (todaysSlots?.available?.toString() || "0"),
+      value: (() => {
+        if (todaysSlotsLoading || todaysAvailabilityLoading) return "...";
+        
+        // Check if availability is not set (no availability data or total slots is 0)
+        const isNotSet = !todaysAvailability || (todaysSlots?.total === 0);
+        
+        if (isNotSet) {
+          return "Not Set Yet — Set Now";
+        } else {
+          const availableSlots = todaysSlots?.available || 0;
+          return `${availableSlots} Slot${availableSlots !== 1 ? 's' : ''} Open`;
+        }
+      })(),
       icon: Clock,
-      bgColor: "bg-green-50 dark:bg-green-950",
+      bgColor: "bg-green-50 dark:bg-green-950", 
       iconColor: "text-green-600 dark:text-green-400",
-      tooltip: "Number of unbooked time slots available today",
-      isLoading: todaysSlotsLoading
+      tooltip: (() => {
+        const isNotSet = !todaysAvailability || (todaysSlots?.total === 0);
+        if (isNotSet) {
+          return "Click to set your availability for today";
+        } else {
+          return "Number of unbooked time slots available today. Click to edit.";
+        }
+      })(),
+      isLoading: todaysSlotsLoading || todaysAvailabilityLoading,
+      isClickable: true,
+      onClick: handleNavigateToTodayAvailability
     },
     {
       title: "New Bookings Today",
@@ -537,14 +571,26 @@ export default function DashboardPage() {
               {stats.map((stat, index) => (
                 <Tooltip key={index}>
                   <TooltipTrigger asChild>
-                    <Card className="border border-border hover:shadow-md transition-shadow cursor-help">
+                    <Card 
+                      className={`border border-border hover:shadow-md transition-shadow ${
+                        stat.isClickable ? 'cursor-pointer hover:bg-muted/50' : 'cursor-help'
+                      }`}
+                      onClick={stat.isClickable ? stat.onClick : undefined}
+                    >
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                            <p className="text-2xl font-bold text-card-foreground mt-1" data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}>
-                              {stat.value}
-                            </p>
+                            <div className="flex items-center justify-between mt-1">
+                              <p className="text-2xl font-bold text-card-foreground" data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}>
+                                {stat.value}
+                              </p>
+                              {stat.isClickable && !stat.isLoading && (
+                                <Button variant="ghost" size="sm" className="ml-2 p-1 h-auto">
+                                  <Edit className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           <div className={`h-12 w-12 ${stat.bgColor} rounded-full flex items-center justify-center ml-4`}>
                             <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
