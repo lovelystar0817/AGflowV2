@@ -495,6 +495,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/slots-count/:date", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const { date } = req.params;
+      
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+      }
+      
+      const slotCounts = await storage.getSlotsCount(req.user.id, date);
+      res.json(slotCounts);
+    } catch (error) {
+      console.error("Error fetching slot counts:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Additional API routes can be added here
   // prefix all routes with /api
 
