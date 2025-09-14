@@ -297,7 +297,21 @@ export class DatabaseStorage implements IStorage {
       .map(app => app.startTime);
     
     // Filter out booked slots
-    return filterAvailableSlots(allSlots, bookedSlots);
+    let availableSlots = filterAvailableSlots(allSlots, bookedSlots);
+    
+    // Only filter past times if date is today (use local time)
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format in local time
+    if (date === today) {
+      const now = new Date();
+      availableSlots = availableSlots.filter(slot => {
+        const [hours, minutes] = slot.split(':').map(Number);
+        const slotDateTime = new Date();
+        slotDateTime.setHours(hours, minutes, 0, 0);
+        return slotDateTime > now;
+      });
+    }
+    
+    return availableSlots;
   }
 
   async getSlotsCount(stylistId: string, date: string): Promise<{ total: number; available: number }> {
@@ -310,10 +324,28 @@ export class DatabaseStorage implements IStorage {
     
     // Generate all possible 30-minute slots from time ranges
     const allSlots = generate30MinuteSlots(availability.timeRanges);
-    const totalSlots = allSlots.length;
+    const totalSlots = allSlots.length; // Always all slots, never filter past times from total
     
-    // Get available slots
-    const availableSlots = await this.getAvailableSlots(stylistId, date);
+    // Get booked slots for this date
+    const bookedAppointments = await this.getAppointmentsByStylist(stylistId, date);
+    const bookedSlots = bookedAppointments
+      .filter(app => app.status === 'confirmed')
+      .map(app => app.startTime);
+    
+    // Filter out booked slots
+    let availableSlots = filterAvailableSlots(allSlots, bookedSlots);
+    
+    // Only filter past times from available count if date is today (use local time)
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format in local time
+    if (date === today) {
+      const now = new Date();
+      availableSlots = availableSlots.filter(slot => {
+        const [hours, minutes] = slot.split(':').map(Number);
+        const slotDateTime = new Date();
+        slotDateTime.setHours(hours, minutes, 0, 0);
+        return slotDateTime > now;
+      });
+    }
     
     return {
       total: totalSlots,
