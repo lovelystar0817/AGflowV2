@@ -120,6 +120,43 @@ export default function DashboardPage() {
     queryKey: ["/api/clients"],
   });
 
+  // Availability query for calendar month
+  const { data: monthAvailability = {} } = useQuery<Record<string, { total: number; available: number }>>({
+    queryKey: ["/api/availability/month", format(currentMonth, "yyyy-MM")],
+    queryFn: async () => {
+      const monthStart = startOfMonth(currentMonth);
+      const monthEnd = endOfMonth(currentMonth);
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      const availability: Record<string, { total: number; available: number }> = {};
+      
+      // Fetch slot counts for each day in the month
+      const promises = days.map(async (date) => {
+        const dateStr = format(date, "yyyy-MM-dd");
+        try {
+          const response = await fetch(`/api/slots-count/${dateStr}`, {
+            credentials: "include",
+          });
+          
+          if (!response.ok) {
+            // If no slot data, default to 0 slots
+            availability[dateStr] = { total: 0, available: 0 };
+            return;
+          }
+          
+          const slotCounts = await response.json();
+          availability[dateStr] = slotCounts;
+        } catch (error) {
+          // If no availability data, default to 0 slots
+          availability[dateStr] = { total: 0, available: 0 };
+        }
+      });
+      
+      await Promise.all(promises);
+      return availability;
+    },
+  });
+
   // Service form
   const serviceForm = useForm<ServiceFormData>({
     resolver: zodResolver(serviceFormSchema),
@@ -523,24 +560,44 @@ export default function DashboardPage() {
                       const isCurrentMonth = isSameMonth(date, currentMonth);
                       const isToday = isSameDay(date, new Date());
                       const isSelected = selectedDate && isSameDay(date, selectedDate);
+                      const dateStr = format(date, "yyyy-MM-dd");
+                      const daySlots = monthAvailability[dateStr];
+                      const hasAvailability = daySlots && daySlots.available > 0;
+                      const isFullyBooked = daySlots && daySlots.total > 0 && daySlots.available === 0;
                       
                       return (
                         <button
                           key={index}
                           onClick={() => handleDateClick(date)}
                           className={`
-                            aspect-square p-2 text-sm border-r border-b border-border hover:bg-muted/50 transition-colors
+                            aspect-square p-2 text-sm border-r border-b border-border hover:bg-muted/50 transition-colors relative
                             ${!isCurrentMonth ? "text-muted-foreground bg-muted/20" : "text-card-foreground"}
                             ${isToday ? "bg-primary text-primary-foreground hover:bg-primary/90 font-medium" : ""}
                             ${isSelected ? "bg-accent text-accent-foreground" : ""}
                             ${index % 7 === 6 ? "border-r-0" : ""}
                             ${index >= (generateCalendarDays(currentMonth).length - 7) ? "border-b-0" : ""}
                           `}
-                          data-testid={`calendar-day-${format(date, "yyyy-MM-dd")}`}
+                          data-testid={`calendar-day-${dateStr}`}
                         >
                           <div className="w-full h-full flex flex-col items-center justify-center">
                             <span className={isToday ? "font-bold" : ""}>{format(date, "d")}</span>
-                            {/* Future: Add appointment indicators here */}
+                            
+                            {/* Availability indicators */}
+                            {isCurrentMonth && (
+                              <div className="mt-1 flex flex-col items-center space-y-1">
+                                {hasAvailability && (
+                                  <>
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full" data-testid={`availability-dot-${dateStr}`} />
+                                    <span className="text-xs font-medium text-green-600 dark:text-green-400" data-testid={`availability-count-${dateStr}`}>
+                                      {daySlots.available}
+                                    </span>
+                                  </>
+                                )}
+                                {isFullyBooked && (
+                                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full" data-testid={`fully-booked-dot-${dateStr}`} />
+                                )}
+                              </div>
+                            )}
                           </div>
                         </button>
                       );
