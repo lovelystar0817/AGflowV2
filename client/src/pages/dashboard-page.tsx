@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
-import { isProfileComplete, serviceFormSchema, type StylistService } from "@shared/schema";
+import { isProfileComplete, serviceFormSchema, type StylistService, type Client } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +82,11 @@ export default function DashboardPage() {
   // Services query
   const { data: services = [], isLoading: servicesLoading } = useQuery<StylistService[]>({
     queryKey: ["/api/services"],
+  });
+
+  // Clients query for dashboard stats
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ["/api/clients"],
   });
 
   // Service form
@@ -216,7 +221,7 @@ export default function DashboardPage() {
     },
     {
       title: "Total Clients",
-      value: "0",
+      value: clients.length.toString(),
       icon: Users,
       bgColor: "bg-secondary/20",
       iconColor: "text-secondary"
