@@ -157,7 +157,7 @@ export default function DashboardPage() {
     return createdAt >= todayStart && createdAt <= todayEnd;
   });
 
-  // Availability query for calendar month
+  // Availability query for calendar month (slot counts)
   const { data: monthAvailability = {} } = useQuery<Record<string, { total: number; available: number }>>({
     queryKey: ["/api/availability/month", format(currentMonth, "yyyy-MM")],
     queryFn: async () => {
@@ -191,6 +191,60 @@ export default function DashboardPage() {
       
       await Promise.all(promises);
       return availability;
+    },
+  });
+
+  // Availability status query for calendar month (isOpen status)
+  const { data: monthAvailabilityStatus = {} } = useQuery<Record<string, { isOpen: boolean }>>({
+    queryKey: ["/api/availability-status/month", format(currentMonth, "yyyy-MM")],
+    queryFn: async () => {
+      const monthStart = startOfMonth(currentMonth);
+      const monthEnd = endOfMonth(currentMonth);
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      const availabilityStatus: Record<string, { isOpen: boolean }> = {};
+      
+      // Fetch availability status for each day in the month
+      const promises = days.map(async (date) => {
+        const dateStr = format(date, "yyyy-MM-dd");
+        try {
+          const response = await fetch(`/api/availability/${dateStr}`, {
+            credentials: "include",
+            cache: "no-store", // Force fresh response to avoid 304
+          });
+          
+          // Handle 304 (Not Modified) - refetch with cache reload
+          if (response.status === 304) {
+            const retryResponse = await fetch(`/api/availability/${dateStr}`, {
+              credentials: "include",
+              cache: "reload",
+            });
+            if (retryResponse.ok) {
+              const availabilityData = await retryResponse.json();
+              availabilityStatus[dateStr] = { isOpen: availabilityData.isOpen };
+            } else {
+              // If retry fails, assume open by default
+              availabilityStatus[dateStr] = { isOpen: true };
+            }
+            return;
+          }
+          
+          if (!response.ok) {
+            // If no availability data, assume open by default
+            availabilityStatus[dateStr] = { isOpen: true };
+            return;
+          }
+          
+          const availabilityData = await response.json();
+          availabilityStatus[dateStr] = { isOpen: availabilityData.isOpen };
+        } catch (error) {
+          // If no availability data, assume open by default
+          availabilityStatus[dateStr] = { isOpen: true };
+        }
+      });
+      
+      await Promise.all(promises);
+      return availabilityStatus;
     },
   });
 
@@ -616,8 +670,10 @@ export default function DashboardPage() {
                       const isSelected = selectedDate && isSameDay(date, selectedDate);
                       const dateStr = format(date, "yyyy-MM-dd");
                       const daySlots = monthAvailability[dateStr];
-                      const hasAvailability = daySlots && daySlots.available > 0;
-                      const isFullyBooked = daySlots && daySlots.total > 0 && daySlots.available === 0;
+                      const dayStatus = monthAvailabilityStatus[dateStr];
+                      const isUnavailable = dayStatus && dayStatus.isOpen === false;
+                      const hasAvailability = daySlots && daySlots.available > 0 && !isUnavailable;
+                      const isFullyBooked = daySlots && daySlots.total > 0 && daySlots.available === 0 && !isUnavailable;
                       
                       return (
                         <button
@@ -626,19 +682,28 @@ export default function DashboardPage() {
                           className={`
                             aspect-square p-2 text-sm border-r border-b border-border hover:bg-muted/50 transition-colors relative
                             ${!isCurrentMonth ? "text-muted-foreground bg-muted/20" : "text-card-foreground"}
-                            ${isToday ? "bg-primary text-primary-foreground hover:bg-primary/90 font-medium" : ""}
-                            ${isSelected ? "bg-accent text-accent-foreground" : ""}
+                            ${isUnavailable && isCurrentMonth ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500" : ""}
+                            ${isToday && !isUnavailable ? "bg-primary text-primary-foreground hover:bg-primary/90 font-medium" : ""}
+                            ${isSelected && !isUnavailable ? "bg-accent text-accent-foreground" : ""}
                             ${index % 7 === 6 ? "border-r-0" : ""}
                             ${index >= (generateCalendarDays(currentMonth).length - 7) ? "border-b-0" : ""}
                           `}
                           data-testid={`calendar-day-${dateStr}`}
+                          disabled={isUnavailable}
                         >
                           <div className="w-full h-full flex flex-col items-center justify-center">
-                            <span className={isToday ? "font-bold" : ""}>{format(date, "d")}</span>
+                            <span className={`${isToday && !isUnavailable ? "font-bold" : ""} ${isUnavailable ? "line-through" : ""}`}>
+                              {format(date, "d")}
+                            </span>
                             
                             {/* Availability indicators */}
                             {isCurrentMonth && (
                               <div className="mt-1 flex flex-col items-center space-y-1">
+                                {isUnavailable && (
+                                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400" data-testid={`unavailable-text-${dateStr}`}>
+                                    Unavailable
+                                  </span>
+                                )}
                                 {hasAvailability && (
                                   <>
                                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full" data-testid={`availability-dot-${dateStr}`} />
