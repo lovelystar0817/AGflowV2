@@ -5,7 +5,13 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage-instance";
-import { User as SelectUser } from "@shared/schema";
+import { User as SelectUser, insertStylistSchema } from "@shared/schema";
+
+// Security helper to remove sensitive data from user responses
+function sanitizeUser(user: SelectUser) {
+  const { passwordHash, ...sanitizedUser } = user;
+  return sanitizedUser;
+}
 
 declare global {
   namespace Express {
@@ -59,21 +65,37 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/register", async (req, res, next) => {
-    const existingUser = await storage.getUserByUsername(req.body.email);
-    if (existingUser) {
-      return res.status(400).send("Email already exists");
+    try {
+      // Validate the request body
+      const validatedData = insertStylistSchema.parse(req.body);
+      
+      const existingUser = await storage.getUserByUsername(validatedData.email);
+      if (existingUser) {
+        return res.status(400).send("Email already exists");
+      }
+
+      const user = await storage.createUser({
+        email: validatedData.email,
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+        businessName: validatedData.businessName,
+        password: await hashPassword(validatedData.password),
+      });
+
+      // Remove passwordHash from response for security
+      const { passwordHash, ...userResponse } = user;
+
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.status(201).json(userResponse);
+      });
+    } catch (error) {
+      if (error instanceof Error && 'issues' in error) {
+        // Zod validation error
+        return res.status(400).json({ error: "Validation failed", details: error });
+      }
+      next(error);
     }
-
-    const user = await storage.createUser({
-      email: req.body.email,
-      businessName: req.body.businessName,
-      password: await hashPassword(req.body.password),
-    });
-
-    req.login(user, (err) => {
-      if (err) return next(err);
-      res.status(201).json(user);
-    });
   });
 
   app.post("/api/login", (req, res, next) => {
@@ -83,7 +105,7 @@ export function setupAuth(app: Express) {
       
       req.login(user, (err) => {
         if (err) return next(err);
-        res.status(200).json(user);
+        res.status(200).json(sanitizeUser(user));
       });
     })(req, res, next);
   });
@@ -97,6 +119,6 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
+    res.json(sanitizeUser(req.user!));
   });
 }

@@ -11,11 +11,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Redirect } from "wouter";
 import { Loader2, Scissors } from "lucide-react";
+import { PasswordStrength } from "@/components/password-strength";
 
 const loginSchema = insertUserSchema.pick({ email: true, password: true });
 type LoginData = z.infer<typeof loginSchema>;
 
-const signupSchema = insertUserSchema;
+const signupSchema = insertUserSchema.extend({
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
 type SignupData = z.infer<typeof signupSchema>;
 
 export default function AuthPage() {
@@ -31,12 +38,18 @@ export default function AuthPage() {
     },
   });
 
-  // Form for signup
+  // Form for signup  
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
+  
   const signupForm = useForm<SignupData>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
+      firstName: "",
+      lastName: "",
       email: "",
       password: "",
+      confirmPassword: "",
       businessName: "",
     },
   });
@@ -51,7 +64,9 @@ export default function AuthPage() {
   };
 
   const onSignup = (data: SignupData) => {
-    registerMutation.mutate(data);
+    // Remove confirmPassword from data before sending to API
+    const { confirmPassword, ...registerData } = data;
+    registerMutation.mutate(registerData);
   };
 
   if (isLoading) {
@@ -63,8 +78,8 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/10 p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-screen overflow-y-auto flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/10 p-4">
+      <div className="w-full max-w-md space-y-8 my-8">
         {/* Logo/Brand Section */}
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-primary rounded-full flex items-center justify-center mb-4">
@@ -143,34 +158,95 @@ export default function AuthPage() {
                 </div>
 
                 <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
+                  {/* First Name and Last Name Row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-firstName">First Name *</Label>
+                      <Input
+                        id="signup-firstName"
+                        type="text"
+                        data-testid="input-signup-firstName"
+                        {...signupForm.register("firstName")}
+                        className="h-12"
+                        required
+                      />
+                      {signupForm.formState.errors.firstName && (
+                        <p className="text-sm text-destructive">{signupForm.formState.errors.firstName.message}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-lastName">Last Name *</Label>
+                      <Input
+                        id="signup-lastName"
+                        type="text"
+                        data-testid="input-signup-lastName"
+                        {...signupForm.register("lastName")}
+                        className="h-12"
+                        required
+                      />
+                      {signupForm.formState.errors.lastName && (
+                        <p className="text-sm text-destructive">{signupForm.formState.errors.lastName.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Email Address */}
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email Address</Label>
+                    <Label htmlFor="signup-email">Email Address *</Label>
                     <Input
                       id="signup-email"
                       type="email"
                       data-testid="input-signup-email"
                       {...signupForm.register("email")}
                       className="h-12"
+                      required
                     />
                     {signupForm.formState.errors.email && (
                       <p className="text-sm text-destructive">{signupForm.formState.errors.email.message}</p>
                     )}
                   </div>
 
+                  {/* Password */}
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
+                    <Label htmlFor="signup-password">Password *</Label>
                     <Input
                       id="signup-password"
                       type="password"
                       data-testid="input-signup-password"
-                      {...signupForm.register("password")}
+                      {...signupForm.register("password", {
+                        onChange: (e) => setPasswordValue(e.target.value),
+                      })}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
                       className="h-12"
+                      required
                     />
                     {signupForm.formState.errors.password && (
                       <p className="text-sm text-destructive">{signupForm.formState.errors.password.message}</p>
                     )}
+                    <PasswordStrength 
+                      password={passwordValue} 
+                      show={passwordFocused || passwordValue.length > 0} 
+                    />
                   </div>
 
+                  {/* Confirm Password */}
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-confirmPassword">Confirm Password *</Label>
+                    <Input
+                      id="signup-confirmPassword"
+                      type="password"
+                      data-testid="input-signup-confirmPassword"
+                      {...signupForm.register("confirmPassword")}
+                      className="h-12"
+                      required
+                    />
+                    {signupForm.formState.errors.confirmPassword && (
+                      <p className="text-sm text-destructive">{signupForm.formState.errors.confirmPassword.message}</p>
+                    )}
+                  </div>
+
+                  {/* Business Name */}
                   <div className="space-y-2">
                     <Label htmlFor="signup-business">Business Name</Label>
                     <Input
@@ -179,6 +255,7 @@ export default function AuthPage() {
                       data-testid="input-signup-business"
                       {...signupForm.register("businessName")}
                       className="h-12"
+                      placeholder="Optional - Your salon or business name"
                     />
                     {signupForm.formState.errors.businessName && (
                       <p className="text-sm text-destructive">{signupForm.formState.errors.businessName.message}</p>
