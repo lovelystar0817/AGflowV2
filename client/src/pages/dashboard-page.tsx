@@ -682,14 +682,14 @@ export default function DashboardPage() {
                           className={`
                             aspect-square p-2 text-sm border-r border-b border-border hover:bg-muted/50 transition-colors relative
                             ${!isCurrentMonth ? "text-muted-foreground bg-muted/20" : "text-card-foreground"}
-                            ${isUnavailable && isCurrentMonth ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500" : ""}
+                            ${isUnavailable && isCurrentMonth ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700" : ""}
                             ${isToday && !isUnavailable ? "bg-primary text-primary-foreground hover:bg-primary/90 font-medium" : ""}
                             ${isSelected && !isUnavailable ? "bg-accent text-accent-foreground" : ""}
+                            ${isSelected && isUnavailable ? "bg-gray-200 dark:bg-gray-700" : ""}
                             ${index % 7 === 6 ? "border-r-0" : ""}
                             ${index >= (generateCalendarDays(currentMonth).length - 7) ? "border-b-0" : ""}
                           `}
                           data-testid={`calendar-day-${dateStr}`}
-                          disabled={isUnavailable}
                         >
                           <div className="w-full h-full flex flex-col items-center justify-center">
                             <span className={`${isToday && !isUnavailable ? "font-bold" : ""} ${isUnavailable ? "line-through" : ""}`}>
