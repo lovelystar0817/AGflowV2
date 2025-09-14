@@ -80,7 +80,9 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  CalendarDays
+  CalendarDays,
+  Clock,
+  TrendingUp
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -89,6 +91,12 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type ServiceFormData = z.infer<typeof serviceFormSchema>;
 
@@ -118,6 +126,35 @@ export default function DashboardPage() {
   // Clients query for dashboard stats
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
+  });
+
+  // Get today's date string
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  // Today's appointments query
+  const { data: todaysAppointments = [], isLoading: todaysAppointmentsLoading } = useQuery<any[]>({
+    queryKey: [`/api/appointments?date=${today}`],
+  });
+
+  // Today's open slots query
+  const { data: todaysSlots, isLoading: todaysSlotsLoading } = useQuery<{ total: number; available: number }>({
+    queryKey: [`/api/slots-count/${today}`],
+  });
+
+  // New bookings today (appointments created today)
+  const { data: allAppointments = [], isLoading: allAppointmentsLoading } = useQuery<any[]>({
+    queryKey: ["/api/appointments"],
+  });
+
+  // Filter appointments created today
+  const newBookingsToday = allAppointments.filter((appointment: any) => {
+    if (!appointment.createdAt) return false;
+    const createdAt = new Date(appointment.createdAt);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    return createdAt >= todayStart && createdAt <= todayEnd;
   });
 
   // Availability query for calendar month
@@ -315,31 +352,39 @@ export default function DashboardPage() {
   const stats = [
     {
       title: "Today's Appointments",
-      value: "0",
+      value: todaysAppointmentsLoading ? "..." : todaysAppointments.length.toString(),
       icon: CalendarCheck,
       bgColor: "bg-primary/10",
-      iconColor: "text-primary"
+      iconColor: "text-primary",
+      tooltip: "Number of appointments scheduled for today",
+      isLoading: todaysAppointmentsLoading
+    },
+    {
+      title: "Open Time Slots Today",
+      value: todaysSlotsLoading ? "..." : (todaysSlots?.available?.toString() || "0"),
+      icon: Clock,
+      bgColor: "bg-green-50 dark:bg-green-950",
+      iconColor: "text-green-600 dark:text-green-400",
+      tooltip: "Number of unbooked time slots available today",
+      isLoading: todaysSlotsLoading
+    },
+    {
+      title: "New Bookings Today",
+      value: allAppointmentsLoading ? "..." : newBookingsToday.length.toString(),
+      icon: TrendingUp,
+      bgColor: "bg-blue-50 dark:bg-blue-950",
+      iconColor: "text-blue-600 dark:text-blue-400",
+      tooltip: "Number of appointments created today (regardless of appointment date)",
+      isLoading: allAppointmentsLoading
     },
     {
       title: "Total Clients",
       value: clients.length.toString(),
       icon: Users,
-      bgColor: "bg-secondary/20",
-      iconColor: "text-secondary"
-    },
-    {
-      title: "Active Coupons",
-      value: "0",
-      icon: Tags,
-      bgColor: "bg-accent",
-      iconColor: "text-primary"
-    },
-    {
-      title: "Avg. Rating",
-      value: "0.0",
-      icon: Star,
-      bgColor: "bg-yellow-100",
-      iconColor: "text-yellow-500"
+      bgColor: "bg-purple-50 dark:bg-purple-950",
+      iconColor: "text-purple-600 dark:text-purple-400",
+      tooltip: "Total number of clients in your database",
+      isLoading: false
     }
   ];
 
@@ -433,25 +478,34 @@ export default function DashboardPage() {
           </div>
           
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-            {stats.map((stat, index) => (
-              <Card key={index} className="border border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                      <p className="text-2xl font-bold text-card-foreground" data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}>
-                        {stat.value}
-                      </p>
-                    </div>
-                    <div className={`h-12 w-12 ${stat.bgColor} rounded-full flex items-center justify-center`}>
-                      <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <TooltipProvider>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+              {stats.map((stat, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <Card className="border border-border hover:shadow-md transition-shadow cursor-help">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                            <p className="text-2xl font-bold text-card-foreground mt-1" data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}>
+                              {stat.value}
+                            </p>
+                          </div>
+                          <div className={`h-12 w-12 ${stat.bgColor} rounded-full flex items-center justify-center ml-4`}>
+                            <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{stat.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </TooltipProvider>
         </div>
 
         {/* Tab Navigation and Content */}
