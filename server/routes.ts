@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, type Client } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, type Client, type InsertStylistService } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -150,6 +150,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(services);
     } catch (error) {
       console.error("Error fetching services:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/services", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const validation = serviceFormSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid service data", details: validation.error.errors });
+      }
+
+      const serviceData: InsertStylistService = {
+        stylistId: req.user.id,
+        serviceName: validation.data.serviceName,
+        price: validation.data.price.toString(),
+        isCustom: validation.data.isCustom,
+      };
+      
+      const newService = await storage.createStylistService(serviceData);
+      res.status(201).json(newService);
+    } catch (error) {
+      console.error("Error creating service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/services/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const serviceId = parseInt(req.params.id);
+      if (isNaN(serviceId)) {
+        return res.status(400).json({ error: "Invalid service ID" });
+      }
+
+      const validation = serviceFormSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid service data", details: validation.error.errors });
+      }
+
+      const updates = {
+        serviceName: validation.data.serviceName,
+        price: validation.data.price.toString(),
+        isCustom: validation.data.isCustom,
+      };
+      
+      const updatedService = await storage.updateStylistService(serviceId, updates);
+      res.json(updatedService);
+    } catch (error) {
+      console.error("Error updating service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/services/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const serviceId = parseInt(req.params.id);
+      if (isNaN(serviceId)) {
+        return res.status(400).json({ error: "Invalid service ID" });
+      }
+      
+      await storage.deleteStylistService(serviceId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting service:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
