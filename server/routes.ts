@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, type Client } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, type Client } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -135,6 +135,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting client:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Profile management route
+  app.patch("/api/profile", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const validation = updateProfileSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid profile data", details: validation.error.errors });
+      }
+      
+      const updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data);
+      
+      // Remove passwordHash from response for security
+      const { passwordHash, ...stylistResponse } = updatedStylist;
+      
+      res.json(stylistResponse);
+    } catch (error) {
+      console.error("Error updating profile:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
