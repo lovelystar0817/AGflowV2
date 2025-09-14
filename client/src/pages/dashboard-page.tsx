@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -262,9 +263,11 @@ export default function DashboardPage() {
     setCurrentMonth(new Date());
   };
 
+  const [, setLocation] = useLocation();
+
   const handleDateClick = (date: Date) => {
-    setSelectedDate(date);
-    setIsDateDrawerOpen(true);
+    const dateString = format(date, 'yyyy-MM-dd');
+    setLocation(`/dashboard/calendar/${dateString}`);
   };
 
   // Get user initials
