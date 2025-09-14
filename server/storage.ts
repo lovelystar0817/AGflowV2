@@ -1,4 +1,4 @@
-import { stylists, clients, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile } from "@shared/schema";
+import { stylists, clients, stylistServices, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import session from "express-session";
@@ -12,6 +12,13 @@ export interface IStorage {
   getStylistByEmail(email: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
   updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist>;
+  
+  // Service management
+  getStylistServices(stylistId: string): Promise<StylistService[]>;
+  createStylistService(service: InsertStylistService): Promise<StylistService>;
+  updateStylistService(id: number, updates: Partial<InsertStylistService>): Promise<StylistService>;
+  deleteStylistService(id: number): Promise<void>;
+  replaceStylistServices(stylistId: string, services: Omit<InsertStylistService, 'stylistId'>[]): Promise<StylistService[]>;
   
   // Client management
   getClientsByStylist(stylistId: string): Promise<Client[]>;
@@ -63,12 +70,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist> {
+    // Update the stylist profile (excluding services which are handled separately)
     const [stylist] = await db
       .update(stylists)
       .set({
         phone: profile.phone,
         location: profile.location,
-        servicesOffered: profile.servicesOffered,
         bio: profile.bio,
         businessHours: profile.businessHours,
         yearsOfExperience: profile.yearsOfExperience,
@@ -77,7 +84,59 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(stylists.id, id))
       .returning();
+    
+    // Update services separately
+    if (profile.services) {
+      // Convert from form data (number prices) to database data (string prices)
+      const servicesForDB = profile.services.map(service => ({
+        serviceName: service.serviceName,
+        price: service.price.toString(),
+        isCustom: service.isCustom
+      }));
+      await this.replaceStylistServices(id, servicesForDB);
+    }
+    
     return stylist;
+  }
+
+  // Service management methods
+  async getStylistServices(stylistId: string): Promise<StylistService[]> {
+    return await db.select().from(stylistServices).where(eq(stylistServices.stylistId, stylistId));
+  }
+
+  async createStylistService(service: InsertStylistService): Promise<StylistService> {
+    const [newService] = await db.insert(stylistServices).values(service).returning();
+    return newService;
+  }
+
+  async updateStylistService(id: number, updates: Partial<InsertStylistService>): Promise<StylistService> {
+    const [updatedService] = await db
+      .update(stylistServices)
+      .set(updates)
+      .where(eq(stylistServices.id, id))
+      .returning();
+    return updatedService;
+  }
+
+  async deleteStylistService(id: number): Promise<void> {
+    await db.delete(stylistServices).where(eq(stylistServices.id, id));
+  }
+
+  async replaceStylistServices(stylistId: string, services: Omit<InsertStylistService, 'stylistId'>[]): Promise<StylistService[]> {
+    // Delete existing services for this stylist
+    await db.delete(stylistServices).where(eq(stylistServices.stylistId, stylistId));
+    
+    // Insert new services
+    if (services.length > 0) {
+      const servicesToInsert = services.map(service => ({
+        ...service,
+        stylistId
+      }));
+      
+      return await db.insert(stylistServices).values(servicesToInsert).returning();
+    }
+    
+    return [];
   }
 
   // Client management methods

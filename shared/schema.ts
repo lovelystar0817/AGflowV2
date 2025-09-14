@@ -63,6 +63,16 @@ export const insertStylistServiceSchema = createInsertSchema(stylistServices).om
 
 export const serviceSchema = z.object({
   serviceName: z.string().min(1, "Service name is required").max(100, "Service name must be 100 characters or less"),
+  price: z.string().refine((val) => {
+    const num = parseFloat(val);
+    return !isNaN(num) && num > 0 && num <= 9999.99;
+  }, "Price must be a valid number between 0.01 and 9999.99"),
+  isCustom: z.boolean().default(false),
+});
+
+// Helper schema for form validation with number inputs
+export const serviceFormSchema = z.object({
+  serviceName: z.string().min(1, "Service name is required").max(100, "Service name must be 100 characters or less"),
   price: z.number().positive("Price must be greater than 0").max(9999.99, "Price must be less than $10,000"),
   isCustom: z.boolean().default(false),
 });
@@ -81,7 +91,7 @@ const businessHoursSchema = z.record(z.object({
 export const updateProfileSchema = z.object({
   phone: z.string().min(1, "Phone number is required").regex(/^[\d\s\-\(\)\+]+$/, "Invalid phone number format"),
   location: z.string().min(1, "Location is required"),
-  services: z.array(serviceSchema).min(1, "At least one service is required"),
+  services: z.array(serviceFormSchema).min(1, "At least one service is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
   yearsOfExperience: z.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience must be 50 or less"),
