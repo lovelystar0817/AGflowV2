@@ -77,6 +77,13 @@ export default function DailyAvailabilityPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/availability', date] });
+      // Invalidate monthly calendar queries to refresh the dashboard calendar
+      const currentDate = new Date(date + 'T00:00:00');
+      const monthKey = format(currentDate, "yyyy-MM");
+      queryClient.invalidateQueries({ queryKey: ['/api/availability/month', monthKey] });
+      queryClient.invalidateQueries({ queryKey: ['/api/availability-status/month', monthKey] });
+      // Also invalidate slots count queries for this date
+      queryClient.invalidateQueries({ queryKey: ['/api/slots-count', date] });
       toast({
         title: "Availability updated",
         description: "Your availability has been saved successfully.",
