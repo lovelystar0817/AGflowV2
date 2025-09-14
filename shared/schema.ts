@@ -186,6 +186,94 @@ export type InsertStylistAvailability = z.infer<typeof insertStylistAvailability
 export type StylistAvailability = typeof stylistAvailability.$inferSelect;
 export type TimeRange = z.infer<typeof timeRangeSchema>;
 
+// Appointments table for tracking bookings
+export const appointments = pgTable("appointments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
+  serviceId: integer("service_id").notNull().references(() => stylistServices.id),
+  date: date("date").notNull(),
+  startTime: text("start_time").notNull(), // Format: "HH:MM" (24-hour)
+  endTime: text("end_time").notNull(), // Format: "HH:MM" (24-hour)
+  status: text("status").notNull().default("confirmed"), // "confirmed", "cancelled", "completed"
+  notes: text("notes"),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  stylistDateTimeUnique: uniqueIndex("appointments_u_stylist_date_time").on(table.stylistId, table.date, table.startTime),
+}));
+
+// Appointment validation schema
+export const appointmentSchema = z.object({
+  stylistId: z.string().uuid("Invalid stylist ID"),
+  clientId: z.string().uuid("Invalid client ID"),
+  serviceId: z.number().int().positive("Invalid service ID"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+  startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
+  endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
+  status: z.enum(["confirmed", "cancelled", "completed"]).default("confirmed"),
+  notes: z.string().optional(),
+  totalPrice: z.string().refine((val) => {
+    const num = parseFloat(val);
+    return !isNaN(num) && num > 0;
+  }, "Total price must be a valid positive number"),
+}).refine((appointment) => {
+  const startMinutes = parseTimeToMinutes(appointment.startTime);
+  const endMinutes = parseTimeToMinutes(appointment.endTime);
+  return endMinutes > startMinutes;
+}, {
+  message: "End time must be after start time",
+}).refine((appointment) => {
+  const startMinutes = parseTimeToMinutes(appointment.startTime);
+  const endMinutes = parseTimeToMinutes(appointment.endTime);
+  const durationMinutes = endMinutes - startMinutes;
+  return durationMinutes >= 60; // Minimum 1 hour appointment
+}, {
+  message: "Appointment must be at least 1 hour long",
+});
+
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+export type Appointment = typeof appointments.$inferSelect;
+
+// Helper functions for slot management
+export function generateHourlySlots(timeRanges: TimeRange[]): string[] {
+  const slots: string[] = [];
+  
+  for (const range of timeRanges) {
+    const startMinutes = parseTimeToMinutes(range.start);
+    const endMinutes = parseTimeToMinutes(range.end);
+    
+    // Generate 1-hour slots from start to end
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += 60) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      const timeStr = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      slots.push(timeStr);
+    }
+  }
+  
+  return slots.sort();
+}
+
+export function filterAvailableSlots(allSlots: string[], bookedSlots: string[]): string[] {
+  return allSlots.filter(slot => !bookedSlots.includes(slot));
+}
+
+export function getSlotEndTime(startTime: string, durationHours: number = 1): string {
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = startMinutes + (durationHours * 60);
+  const hours = Math.floor(endMinutes / 60);
+  const mins = endMinutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
 // Legacy exports for compatibility with auth blueprint
 export const users = stylists;
 export const insertUserSchema = insertStylistSchema;
