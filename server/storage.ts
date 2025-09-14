@@ -70,7 +70,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist> {
-    // Update the stylist profile (excluding services which are handled separately)
+    // Update services first to get the service names for legacy field
+    let serviceNames: string[] = [];
+    if (profile.services) {
+      // Convert from form data (number prices) to database data (string prices)
+      const servicesForDB = profile.services.map(service => ({
+        serviceName: service.serviceName,
+        price: service.price.toString(),
+        isCustom: service.isCustom
+      }));
+      await this.replaceStylistServices(id, servicesForDB);
+      serviceNames = profile.services.map(service => service.serviceName);
+    }
+    
+    // Update the stylist profile (including legacy servicesOffered field for completeness check)
     const [stylist] = await db
       .update(stylists)
       .set({
@@ -81,20 +94,11 @@ export class DatabaseStorage implements IStorage {
         yearsOfExperience: profile.yearsOfExperience,
         instagramHandle: profile.instagramHandle,
         bookingLink: profile.bookingLink,
+        // Populate legacy field for backward compatibility with isProfileComplete
+        servicesOffered: profile.services ? serviceNames : undefined,
       })
       .where(eq(stylists.id, id))
       .returning();
-    
-    // Update services separately
-    if (profile.services) {
-      // Convert from form data (number prices) to database data (string prices)
-      const servicesForDB = profile.services.map(service => ({
-        serviceName: service.serviceName,
-        price: service.price.toString(),
-        isCustom: service.isCustom
-      }));
-      await this.replaceStylistServices(id, servicesForDB);
-    }
     
     return stylist;
   }
