@@ -1,6 +1,6 @@
-import { stylists, clients, stylistServices, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -26,6 +26,11 @@ export interface IStorage {
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: string, updates: Partial<InsertClient>): Promise<Client>;
   deleteClient(id: string): Promise<void>;
+  
+  // Availability management
+  getStylistAvailability(stylistId: string, date: string): Promise<StylistAvailability | undefined>;
+  setStylistAvailability(availability: InsertStylistAvailability): Promise<StylistAvailability>;
+  updateStylistAvailability(stylistId: string, date: string, updates: { isOpen?: boolean; timeRanges?: { start: string; end: string }[] }): Promise<StylistAvailability>;
   
   sessionStore: session.Store;
   
@@ -169,6 +174,46 @@ export class DatabaseStorage implements IStorage {
 
   async deleteClient(id: string): Promise<void> {
     await db.delete(clients).where(eq(clients.id, id));
+  }
+
+  // Availability management methods
+  async getStylistAvailability(stylistId: string, date: string): Promise<StylistAvailability | undefined> {
+    const [availability] = await db
+      .select()
+      .from(stylistAvailability)
+      .where(and(eq(stylistAvailability.stylistId, stylistId), eq(stylistAvailability.date, date)));
+    return availability || undefined;
+  }
+
+  async setStylistAvailability(availability: InsertStylistAvailability): Promise<StylistAvailability> {
+    // Use atomic upsert to avoid race conditions
+    const [result] = await db
+      .insert(stylistAvailability)
+      .values(availability)
+      .onConflictDoUpdate({
+        target: [stylistAvailability.stylistId, stylistAvailability.date],
+        set: {
+          isOpen: availability.isOpen,
+          timeRanges: availability.timeRanges,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async updateStylistAvailability(stylistId: string, date: string, updates: { isOpen?: boolean; timeRanges?: { start: string; end: string }[] }): Promise<StylistAvailability> {
+    const [updatedAvailability] = await db
+      .update(stylistAvailability)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(stylistAvailability.stylistId, stylistId), eq(stylistAvailability.date, date)))
+      .returning();
+    
+    if (!updatedAvailability) {
+      throw new Error(`No availability found for stylist ${stylistId} on date ${date}`);
+    }
+    
+    return updatedAvailability;
   }
 
   // Legacy methods for compatibility with auth blueprint
