@@ -139,6 +139,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Services management routes
+  app.get("/api/services", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const services = await storage.getStylistServices(req.user.id);
+      res.json(services);
+    } catch (error) {
+      console.error("Error fetching services:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Profile management route
   app.patch("/api/profile", async (req, res) => {
     try {

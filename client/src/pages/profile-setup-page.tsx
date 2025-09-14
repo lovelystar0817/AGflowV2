@@ -1,8 +1,8 @@
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { updateProfileSchema, type UpdateProfile } from "@shared/schema";
+import { updateProfileSchema, type UpdateProfile, type StylistService } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Plus, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
 
 const DAYS_OF_WEEK = [
   { key: "monday", label: "Monday" },
@@ -48,13 +50,24 @@ export default function ProfileSetupPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  // State for custom service creation
+  const [customServiceName, setCustomServiceName] = useState("");
+  const [customServicePrice, setCustomServicePrice] = useState("");
+
+  // Fetch existing services
+  const { data: existingServices, isLoading: servicesLoading } = useQuery<StylistService[]>({
+    queryKey: ["/api/services"],
+    enabled: !!user, // Only fetch if user is authenticated
+  });
 
   const form = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
       phone: "",
       location: "",
-      servicesOffered: [],
+      services: [],
       bio: "",
       businessHours: {
         monday: { open: "09:00", close: "17:00", isClosed: false },
@@ -71,6 +84,43 @@ export default function ProfileSetupPage() {
     },
   });
 
+  // Populate form with existing user data and services when loaded
+  useEffect(() => {
+    if (user && !servicesLoading) {
+      // Convert existing services from DB format (string prices) to form format (number prices)
+      const formServices = existingServices ? existingServices.map(service => ({
+        serviceName: service.serviceName,
+        price: parseFloat(service.price),
+        isCustom: service.isCustom
+      })) : [];
+
+      // Reset form with existing user data
+      form.reset({
+        phone: user.phone || "",
+        location: user.location || "",
+        services: formServices,
+        bio: user.bio || "",
+        businessHours: user.businessHours || {
+          monday: { open: "09:00", close: "17:00", isClosed: false },
+          tuesday: { open: "09:00", close: "17:00", isClosed: false },
+          wednesday: { open: "09:00", close: "17:00", isClosed: false },
+          thursday: { open: "09:00", close: "17:00", isClosed: false },
+          friday: { open: "09:00", close: "17:00", isClosed: false },
+          saturday: { open: "09:00", close: "17:00", isClosed: false },
+          sunday: { open: "09:00", close: "17:00", isClosed: true },
+        },
+        yearsOfExperience: user.yearsOfExperience || 0,
+        instagramHandle: user.instagramHandle || "",
+        bookingLink: user.bookingLink || "",
+      });
+    }
+  }, [user, existingServices, servicesLoading, form]);
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "services",
+  });
+
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfile) => {
       const response = await apiRequest("/api/profile", "PATCH", data);
@@ -81,6 +131,7 @@ export default function ProfileSetupPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       toast({
         title: "Profile completed successfully!",
         description: "Your business profile is now complete.",
@@ -109,6 +160,68 @@ export default function ProfileSetupPage() {
         [field]: value,
       },
     });
+  };
+
+  const handlePresetServiceToggle = (serviceName: string, checked: boolean) => {
+    const currentServices = form.getValues('services') || [];
+    
+    if (checked) {
+      // Add service with default price
+      append({
+        serviceName,
+        price: 50, // Default price
+        isCustom: false,
+      });
+    } else {
+      // Remove service
+      const index = currentServices.findIndex(s => s.serviceName === serviceName && !s.isCustom);
+      if (index !== -1) {
+        remove(index);
+      }
+    }
+  };
+
+  const addCustomService = () => {
+    if (!customServiceName.trim() || !customServicePrice) return;
+
+    const price = parseFloat(customServicePrice);
+    if (isNaN(price) || price <= 0) {
+      toast({
+        title: "Invalid price",
+        description: "Please enter a valid price greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    append({
+      serviceName: customServiceName.trim(),
+      price,
+      isCustom: true,
+    });
+
+    setCustomServiceName("");
+    setCustomServicePrice("");
+  };
+
+  const currentServices = form.watch('services') || [];
+  const isPresetServiceSelected = (serviceName: string) => {
+    return currentServices.some(s => s.serviceName === serviceName && !s.isCustom);
+  };
+
+  const getPresetServicePrice = (serviceName: string) => {
+    const service = currentServices.find(s => s.serviceName === serviceName && !s.isCustom);
+    return service ? service.price.toString() : "";
+  };
+
+  const updatePresetServicePrice = (serviceName: string, price: string) => {
+    const currentServices = form.getValues('services') || [];
+    const index = currentServices.findIndex(s => s.serviceName === serviceName && !s.isCustom);
+    
+    if (index !== -1) {
+      const numPrice = parseFloat(price) || 0;
+      form.setValue(`services.${index}.price`, numPrice);
+    }
   };
 
   return (
@@ -191,41 +304,123 @@ export default function ProfileSetupPage() {
               <CardHeader>
                 <CardTitle>Services Offered</CardTitle>
                 <CardDescription>
-                  Select the services you provide (select at least one)
+                  Select services you provide and set your prices (at least one service required)
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                {/* Preset Services */}
+                <div>
+                  <h4 className="text-sm font-medium mb-4">Common Services</h4>
+                  <div className="space-y-4">
+                    {COMMON_SERVICES.map((service) => (
+                      <div key={service} className="flex items-center space-x-4">
+                        <Checkbox
+                          id={service}
+                          checked={isPresetServiceSelected(service)}
+                          onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                          data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                        />
+                        <label
+                          htmlFor={service}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                        >
+                          {service}
+                        </label>
+                        {isPresetServiceSelected(service) && (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm">$</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={getPresetServicePrice(service)}
+                              onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                              className="w-24"
+                              data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Service Creator */}
+                <div className="border-t pt-6">
+                  <h4 className="text-sm font-medium mb-4">Add Custom Service</h4>
+                  <div className="flex items-end space-x-4">
+                    <div className="flex-1">
+                      <label className="text-sm font-medium">Service Name</label>
+                      <Input
+                        placeholder="e.g., Custom Color Treatment"
+                        value={customServiceName}
+                        onChange={(e) => setCustomServiceName(e.target.value)}
+                        data-testid="input-custom-service-name"
+                      />
+                    </div>
+                    <div className="w-32">
+                      <label className="text-sm font-medium">Price ($)</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={customServicePrice}
+                        onChange={(e) => setCustomServicePrice(e.target.value)}
+                        data-testid="input-custom-service-price"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={addCustomService}
+                      disabled={!customServiceName.trim() || !customServicePrice}
+                      data-testid="button-add-custom-service"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Service
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Added Services List */}
+                {currentServices.length > 0 && (
+                  <div className="border-t pt-6">
+                    <h4 className="text-sm font-medium mb-4">Your Services ({currentServices.length})</h4>
+                    <div className="space-y-2">
+                      {currentServices.map((service, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <span className="font-medium">{service.serviceName}</span>
+                            <span className="text-sm text-muted-foreground">
+                              ${service.price.toFixed(2)}
+                            </span>
+                            {service.isCustom && (
+                              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                                Custom
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => remove(index)}
+                            data-testid={`button-remove-service-${index}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
-                  name="servicesOffered"
-                  render={({ field }) => (
+                  name="services"
+                  render={() => (
                     <FormItem>
-                      <FormControl>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {COMMON_SERVICES.map((service) => (
-                            <div key={service} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={service}
-                                checked={field.value?.includes(service) || false}
-                                onCheckedChange={(checked) => {
-                                  const currentServices = field.value || [];
-                                  const newServices = checked
-                                    ? [...currentServices, service]
-                                    : currentServices.filter(s => s !== service);
-                                  field.onChange(newServices);
-                                }}
-                                data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                              />
-                              <label
-                                htmlFor={service}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                {service}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -413,7 +608,7 @@ export default function ProfileSetupPage() {
               </Button>
               <Button 
                 type="submit" 
-                disabled={updateProfileMutation.isPending || !form.watch('servicesOffered')?.length}
+                disabled={updateProfileMutation.isPending || currentServices.length === 0}
                 data-testid="button-complete-profile"
               >
                 {updateProfileMutation.isPending ? (
