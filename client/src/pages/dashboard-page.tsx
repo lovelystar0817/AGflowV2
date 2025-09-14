@@ -396,12 +396,11 @@ export default function DashboardPage() {
     setCurrentMonth(new Date());
   };
 
-  // Navigate to Calendar tab with today's date selected
+  // Navigate to Calendar tab with today's date selected and open availability editor
   const handleNavigateToTodayAvailability = () => {
     const today = new Date();
-    setActiveTab("calendar");
-    setCurrentMonth(today);
-    setSelectedDate(today);
+    const dateStr = format(today, "yyyy-MM-dd");
+    setLocation(`/dashboard/calendar/${dateStr}`);
   };
 
   const [, setLocation] = useLocation();
@@ -435,7 +434,7 @@ export default function DashboardPage() {
         const isNotSet = !todaysAvailability || (todaysSlots?.total === 0);
         
         if (isNotSet) {
-          return "Not Set Yet — Set Now";
+          return "No Hours Set — Click to Add";
         } else {
           const availableSlots = todaysSlots?.available || 0;
           return `${availableSlots} Slot${availableSlots !== 1 ? 's' : ''} Open`;
@@ -582,7 +581,14 @@ export default function DashboardPage() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
                             <div className="flex items-center justify-between mt-1">
-                              <p className="text-2xl font-bold text-card-foreground" data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}>
+                              <p 
+                                className={`text-card-foreground ${
+                                  stat.title === "Open Time Slots Today" && stat.value?.includes("No Hours Set") 
+                                    ? "text-lg font-medium" 
+                                    : "text-2xl font-bold"
+                                }`} 
+                                data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}
+                              >
                                 {stat.value}
                               </p>
                               {stat.isClickable && !stat.isLoading && (
