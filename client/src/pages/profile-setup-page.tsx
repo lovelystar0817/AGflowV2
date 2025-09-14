@@ -2,7 +2,8 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { updateProfileSchema, type UpdateProfile, type StylistService } from "@shared/schema";
+import { updateProfileSchema, type UpdateProfile, type StylistService, type TimeRange } from "@shared/schema";
+import { addDays, format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -121,21 +122,97 @@ export default function ProfileSetupPage() {
     name: "services",
   });
 
+  // Helper function to create default availability for new users only
+  const createDefaultAvailabilityForNewUser = (businessHours: UpdateProfile['businessHours'], isFirstTimeSetup: boolean) => {
+    if (!businessHours || !isFirstTimeSetup) return;
+    
+    // Fire and forget - don't block navigation
+    setTimeout(async () => {
+      try {
+        const startDate = new Date(); // Start from today
+        const promises = [];
+        let successCount = 0;
+        
+        for (let dayOffset = 0; dayOffset < 28; dayOffset++) { // Next 28 days
+          const currentDate = addDays(startDate, dayOffset);
+          const dateStr = format(currentDate, 'yyyy-MM-dd');
+          
+          // Get the day name
+          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const dayName = dayNames[currentDate.getDay()] as keyof typeof businessHours;
+          const dayHours = businessHours[dayName];
+          
+          if (dayHours && !dayHours.isClosed) {
+            // Check if availability already exists to avoid overwriting
+            const checkPromise = apiRequest('GET', `/api/availability/${dateStr}`, undefined)
+              .then(response => response.json())
+              .then(existingData => {
+                // Only create if no time ranges exist (default empty state)
+                if (!existingData.timeRanges || existingData.timeRanges.length === 0) {
+                  const timeRanges: TimeRange[] = [{
+                    start: dayHours.open,
+                    end: dayHours.close,
+                  }];
+                  
+                  const availabilityData = {
+                    isOpen: true,
+                    timeRanges,
+                  };
+                  
+                  return apiRequest('PUT', `/api/availability/${dateStr}`, availabilityData)
+                    .then(() => { successCount++; })
+                    .catch(error => console.warn(`Failed to create availability for ${dateStr}:`, error));
+                }
+              })
+              .catch(error => console.warn(`Failed to check availability for ${dateStr}:`, error));
+            
+            promises.push(checkPromise);
+          }
+        }
+        
+        await Promise.allSettled(promises);
+        
+        // Invalidate availability queries to refresh calendar
+        queryClient.invalidateQueries({ queryKey: ['/api/availability'] });
+        
+        // Show result toast
+        if (successCount > 0) {
+          toast({
+            title: "Default availability set up",
+            description: `Created availability for ${successCount} days based on your business hours.`,
+          });
+        }
+      } catch (error) {
+        console.error('Error setting up default availability:', error);
+      }
+    }, 100); // Small delay to ensure navigation completes first
+  };
+
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfile) => {
       const response = await apiRequest("PATCH", "/api/profile", data);
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      return response.json();
+      return { profileData: await response.json(), businessHours: data.businessHours };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      
+      // Check if this is first-time profile completion (user had no previous business hours)
+      const isFirstTimeSetup = !user?.businessHours;
+      
+      // Set up default availability for new users only (non-blocking)
+      createDefaultAvailabilityForNewUser(result.businessHours, isFirstTimeSetup);
+      
       toast({
         title: "Profile completed successfully!",
-        description: "Your business profile is now complete.",
+        description: isFirstTimeSetup 
+          ? "Your business profile is complete. Setting up default availability based on your business hours..."
+          : "Your business profile has been updated successfully.",
       });
+      
       navigate("/");
     },
     onError: (error: Error) => {
