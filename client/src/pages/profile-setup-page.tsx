@@ -123,7 +123,7 @@ export default function ProfileSetupPage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfile) => {
-      const response = await apiRequest("/api/profile", "PATCH", data);
+      const response = await apiRequest("PATCH", "/api/profile", data);
       if (!response.ok) {
         throw new Error(await response.text());
       }
@@ -151,16 +151,6 @@ export default function ProfileSetupPage() {
     updateProfileMutation.mutate(data);
   };
 
-  const handleBusinessHourChange = (day: string, field: 'open' | 'close' | 'isClosed', value: string | boolean) => {
-    const currentHours = form.getValues('businessHours');
-    form.setValue('businessHours', {
-      ...currentHours,
-      [day]: {
-        ...currentHours[day],
-        [field]: value,
-      },
-    });
-  };
 
   const handlePresetServiceToggle = (serviceName: string, checked: boolean) => {
     const currentServices = form.getValues('services') || [];
@@ -505,31 +495,47 @@ export default function ProfileSetupPage() {
                         <label className="text-sm font-medium">{day.label}</label>
                       </div>
                       
-                      <Checkbox
-                        checked={!form.watch(`businessHours.${day.key}.isClosed`)}
-                        onCheckedChange={(checked) => 
-                          handleBusinessHourChange(day.key, 'isClosed', !checked)
-                        }
-                        data-testid={`checkbox-${day.key}-open`}
+                      <FormField
+                        control={form.control}
+                        name={`businessHours.${day.key}.isClosed`}
+                        render={({ field }) => (
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={!field.value}
+                              onCheckedChange={(checked) => field.onChange(!checked)}
+                              data-testid={`checkbox-${day.key}-open`}
+                            />
+                            <span className="text-sm">Open</span>
+                          </div>
+                        )}
                       />
-                      <span className="text-sm">Open</span>
                       
                       {!form.watch(`businessHours.${day.key}.isClosed`) && (
                         <>
-                          <Input
-                            type="time"
-                            value={form.watch(`businessHours.${day.key}.open`) || "09:00"}
-                            onChange={(e) => handleBusinessHourChange(day.key, 'open', e.target.value)}
-                            className="w-32"
-                            data-testid={`input-${day.key}-open`}
+                          <FormField
+                            control={form.control}
+                            name={`businessHours.${day.key}.open`}
+                            render={({ field }) => (
+                              <Input
+                                type="time"
+                                {...field}
+                                className="w-32"
+                                data-testid={`input-${day.key}-open`}
+                              />
+                            )}
                           />
                           <span className="text-sm">to</span>
-                          <Input
-                            type="time"
-                            value={form.watch(`businessHours.${day.key}.close`) || "17:00"}
-                            onChange={(e) => handleBusinessHourChange(day.key, 'close', e.target.value)}
-                            className="w-32"
-                            data-testid={`input-${day.key}-close`}
+                          <FormField
+                            control={form.control}
+                            name={`businessHours.${day.key}.close`}
+                            render={({ field }) => (
+                              <Input
+                                type="time"
+                                {...field}
+                                className="w-32"
+                                data-testid={`input-${day.key}-close`}
+                              />
+                            )}
                           />
                         </>
                       )}
