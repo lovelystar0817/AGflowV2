@@ -1,4 +1,17 @@
 import { useState } from "react";
+import { 
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek, 
+  eachDayOfInterval, 
+  format, 
+  isSameDay, 
+  isSameMonth, 
+  isToday,
+  addMonths,
+  subMonths
+} from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,6 +51,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { 
   Calendar, 
   Users, 
@@ -54,7 +76,10 @@ import {
   UserPlus,
   Share,
   Edit,
-  Trash2
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,6 +103,11 @@ export default function DashboardPage() {
   const [editingService, setEditingService] = useState<StylistService | null>(null);
   const [isServiceDialogOpen, setIsServiceDialogOpen] = useState(false);
   const [deleteServiceId, setDeleteServiceId] = useState<number | null>(null);
+
+  // Calendar state
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isDateDrawerOpen, setIsDateDrawerOpen] = useState(false);
 
   // Services query
   const { data: services = [], isLoading: servicesLoading } = useQuery<StylistService[]>({
@@ -204,6 +234,37 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     logoutMutation.mutate();
+  };
+
+  // Calendar helper functions
+  const generateCalendarDays = (month: Date) => {
+    const monthStart = startOfMonth(month);
+    const monthEnd = endOfMonth(month);
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday start
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    
+    return eachDayOfInterval({
+      start: calendarStart,
+      end: calendarEnd,
+    });
+  };
+
+  // Calendar event handlers
+  const handlePreviousMonth = () => {
+    setCurrentMonth(prev => subMonths(prev, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(prev => addMonths(prev, 1));
+  };
+
+  const handleTodayClick = () => {
+    setCurrentMonth(new Date());
+  };
+
+  const handleDateClick = (date: Date) => {
+    setSelectedDate(date);
+    setIsDateDrawerOpen(true);
   };
 
   // Get user initials
@@ -405,20 +466,82 @@ export default function DashboardPage() {
               {/* Calendar Tab */}
               <TabsContent value="calendar" className="mt-0">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-card-foreground">Appointment Calendar</h2>
+                  <div className="flex items-center space-x-4">
+                    <h2 className="text-xl font-semibold text-card-foreground">
+                      {format(currentMonth, "MMMM yyyy")}
+                    </h2>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePreviousMonth}
+                        data-testid="button-prev-month"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextMonth}
+                        data-testid="button-next-month"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTodayClick}
+                        data-testid="button-today"
+                      >
+                        Today
+                      </Button>
+                    </div>
+                  </div>
                   <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-new-appointment">
                     <Plus className="mr-2 h-4 w-4" />
                     New Appointment
                   </Button>
                 </div>
                 
-                <div className="bg-muted rounded-lg p-8 text-center">
-                  <div className="max-w-sm mx-auto">
-                    <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Calendar className="h-8 w-8 text-primary" />
-                    </div>
-                    <h3 className="text-lg font-medium text-card-foreground mb-2">Calendar Integration Coming Soon</h3>
-                    <p className="text-muted-foreground">Your appointment calendar will be displayed here with booking management capabilities.</p>
+                {/* Calendar Grid */}
+                <div className="bg-background border border-border rounded-lg overflow-hidden">
+                  {/* Week Header */}
+                  <div className="grid grid-cols-7 border-b border-border bg-muted/50">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                      <div key={day} className="p-3 text-center text-sm font-medium text-muted-foreground">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Calendar Days */}
+                  <div className="grid grid-cols-7">
+                    {generateCalendarDays(currentMonth).map((date, index) => {
+                      const isCurrentMonth = isSameMonth(date, currentMonth);
+                      const isToday = isSameDay(date, new Date());
+                      const isSelected = selectedDate && isSameDay(date, selectedDate);
+                      
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => handleDateClick(date)}
+                          className={`
+                            aspect-square p-2 text-sm border-r border-b border-border hover:bg-muted/50 transition-colors
+                            ${!isCurrentMonth ? "text-muted-foreground bg-muted/20" : "text-card-foreground"}
+                            ${isToday ? "bg-primary text-primary-foreground hover:bg-primary/90 font-medium" : ""}
+                            ${isSelected ? "bg-accent text-accent-foreground" : ""}
+                            ${index % 7 === 6 ? "border-r-0" : ""}
+                            ${index >= (generateCalendarDays(currentMonth).length - 7) ? "border-b-0" : ""}
+                          `}
+                          data-testid={`calendar-day-${format(date, "yyyy-MM-dd")}`}
+                        >
+                          <div className="w-full h-full flex flex-col items-center justify-center">
+                            <span className={isToday ? "font-bold" : ""}>{format(date, "d")}</span>
+                            {/* Future: Add appointment indicators here */}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </TabsContent>
@@ -666,6 +789,59 @@ export default function DashboardPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Date Details Drawer */}
+        <Drawer open={isDateDrawerOpen} onOpenChange={setIsDateDrawerOpen}>
+          <DrawerContent>
+            <div className="mx-auto w-full max-w-sm">
+              <DrawerHeader>
+                <DrawerTitle>
+                  {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : "Select a Date"}
+                </DrawerTitle>
+                <DrawerDescription>
+                  {selectedDate && isToday(selectedDate) 
+                    ? "Today's appointments and schedule" 
+                    : "View and manage appointments for this date"
+                  }
+                </DrawerDescription>
+              </DrawerHeader>
+              
+              <div className="p-4 pb-0">
+                <div className="space-y-4">
+                  {/* Today's date badge */}
+                  {selectedDate && isToday(selectedDate) && (
+                    <div className="bg-primary/10 text-primary text-sm px-3 py-1.5 rounded-full text-center font-medium">
+                      <CalendarDays className="inline h-4 w-4 mr-1" />
+                      Today
+                    </div>
+                  )}
+                  
+                  {/* Placeholder for appointments */}
+                  <div className="text-center py-8">
+                    <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Calendar className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">No appointments scheduled</p>
+                    <Button 
+                      size="sm" 
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                      data-testid="button-add-appointment"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Appointment
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <DrawerFooter>
+                <DrawerClose asChild>
+                  <Button variant="outline" data-testid="button-close-drawer">Close</Button>
+                </DrawerClose>
+              </DrawerFooter>
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </div>
   );
