@@ -262,6 +262,25 @@ export function generateHourlySlots(timeRanges: TimeRange[]): string[] {
   return slots.sort();
 }
 
+export function generate30MinuteSlots(timeRanges: TimeRange[]): string[] {
+  const slots: string[] = [];
+  
+  for (const range of timeRanges) {
+    const startMinutes = parseTimeToMinutes(range.start);
+    const endMinutes = parseTimeToMinutes(range.end);
+    
+    // Generate 30-minute slots from start to end
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += 30) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      const timeStr = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      slots.push(timeStr);
+    }
+  }
+  
+  return slots.sort();
+}
+
 export function filterAvailableSlots(allSlots: string[], bookedSlots: string[]): string[] {
   return allSlots.filter(slot => !bookedSlots.includes(slot));
 }
