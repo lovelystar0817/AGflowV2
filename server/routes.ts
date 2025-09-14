@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, type Client, type InsertStylistService } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, type Client, type InsertStylistService } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -227,6 +227,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting service:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Availability management routes
+  app.get("/api/availability/:date", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const { date } = req.params;
+      
+      // Validate date format
+      const dateValidation = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").safeParse(date);
+      if (!dateValidation.success) {
+        return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+      }
+      
+      const availability = await storage.getStylistAvailability(req.user.id, date);
+      
+      // Return default availability if none exists
+      if (!availability) {
+        return res.json({
+          date,
+          isOpen: true,
+          timeRanges: [],
+        });
+      }
+      
+      res.json(availability);
+    } catch (error) {
+      console.error("Error fetching availability:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/availability/:date", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const { date } = req.params;
+      
+      const validation = availabilitySchema.safeParse({
+        ...req.body,
+        date,
+      });
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid availability data", details: validation.error.errors });
+      }
+      
+      const availabilityData = {
+        stylistId: req.user.id,
+        date: validation.data.date,
+        isOpen: validation.data.isOpen,
+        timeRanges: validation.data.timeRanges || [],
+      };
+      
+      const availability = await storage.setStylistAvailability(availabilityData);
+      res.json(availability);
+    } catch (error) {
+      console.error("Error setting availability:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/availability/:date", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const { date } = req.params;
+      
+      // Validate date format
+      const dateValidation = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").safeParse(date);
+      if (!dateValidation.success) {
+        return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+      }
+      
+      const updateSchema = availabilitySchema.omit({ date: true }).partial();
+      const validation = updateSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid availability data", details: validation.error.errors });
+      }
+      
+      const updatedAvailability = await storage.updateStylistAvailability(req.user.id, date, validation.data);
+      res.json(updatedAvailability);
+    } catch (error) {
+      console.error("Error updating availability:", error);
+      if (error instanceof Error && error.message.includes("No availability found")) {
+        return res.status(404).json({ error: error.message });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });
