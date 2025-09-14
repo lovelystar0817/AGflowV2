@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClientsPage } from "./clients-page";
 import { 
   Calendar, 
   Users, 
@@ -239,23 +240,7 @@ export default function DashboardPage() {
 
               {/* Clients Tab */}
               <TabsContent value="clients" className="mt-0">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-card-foreground">Client Management</h2>
-                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-add-client">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add Client
-                  </Button>
-                </div>
-                
-                <div className="bg-muted rounded-lg p-8 text-center">
-                  <div className="max-w-sm mx-auto">
-                    <div className="h-16 w-16 bg-secondary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Users className="h-8 w-8 text-secondary" />
-                    </div>
-                    <h3 className="text-lg font-medium text-card-foreground mb-2">Client CRM Coming Soon</h3>
-                    <p className="text-muted-foreground">Manage your client database, track appointments, and maintain customer relationships.</p>
-                  </div>
-                </div>
+                <ClientsPage />
               </TabsContent>
 
               {/* Coupons Tab */}
