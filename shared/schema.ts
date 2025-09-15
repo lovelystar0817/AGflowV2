@@ -408,12 +408,13 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
   recipientType: text("recipient_type").notNull(), // 'all' | 'custom' | 'logic'
   clientIds: jsonb("client_ids").$type<string[]>().default(sql`'[]'::jsonb`), // Array of client IDs for custom targeting
   logicRule: text("logic_rule"), // 'first_time' | 'after_2_visits' for logic-based targeting
-  message: text("message").notNull(), // SMS message content for delivery
-  // SMS tracking fields
-  smsStatus: text("sms_status").default("pending"), // 'pending' | 'queued' | 'sent' | 'delivered' | 'failed'
-  smsSid: text("sms_sid"), // Twilio message SID for tracking
-  smsError: text("sms_error"), // Error message if SMS delivery failed
-  deliveredAt: timestamp("delivered_at"), // When SMS was successfully delivered
+  message: text("message").notNull(), // Email content for delivery
+  subject: text("subject").notNull(), // Email subject line
+  // Email tracking fields
+  emailStatus: text("email_status").default("pending"), // 'pending' | 'queued' | 'sent' | 'delivered' | 'failed'
+  emailId: text("email_id"), // Resend email ID for tracking
+  emailError: text("email_error"), // Error message if email delivery failed
+  deliveredAt: timestamp("delivered_at"), // When email was successfully delivered
   scheduledAt: timestamp("scheduled_at").defaultNow(),  // Default to now for "send now" functionality
   sentAt: timestamp("sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -426,7 +427,8 @@ export const couponDeliveryFormSchema = z.object({
   clientIds: z.array(z.string().uuid()).optional(),
   logicRule: z.enum(["first_time", "after_2_visits"]).optional(),
   messageTemplate: z.enum(["new_client", "general_promo", "loyalty_reward"]).optional(),
-  message: z.string().min(1, "Message is required").max(1600, "Message too long for SMS (limit: 1600 characters)"),
+  message: z.string().min(1, "Message is required").max(5000, "Message too long for email (limit: 5000 characters)"),
+  subject: z.string().min(1, "Subject is required").max(200, "Subject too long (limit: 200 characters)"),
   scheduledAt: z.string().datetime("Invalid datetime format").optional(), // Optional for "send now"
 }).refine((data) => {
   // Ensure clientIds is provided when recipientType is 'custom'
