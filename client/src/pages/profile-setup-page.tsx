@@ -2,7 +2,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { updateProfileSchema, type UpdateProfile, type StylistService, type TimeRange } from "@shared/schema";
+import { updateProfileSchema, type UpdateProfile, type StylistService, type TimeRange, DEFAULT_SERVICES_BY_TYPE } from "@shared/schema";
 import { addDays, format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -27,20 +27,10 @@ const DAYS_OF_WEEK = [
   { key: "sunday", label: "Sunday" },
 ];
 
-const COMMON_SERVICES = [
-  "Haircut & Styling",
-  "Hair Coloring",
-  "Highlights & Lowlights", 
-  "Balayage",
-  "Hair Extensions",
-  "Blowout & Styling",
-  "Special Occasion Hair",
-  "Bridal Hair",
-  "Keratin Treatment",
-  "Hair Washing & Conditioning",
-  "Beard Trimming",
-  "Eyebrow Shaping",
-];
+// Get default services based on user's business type
+const getDefaultServices = (businessType: string = "Hairstylist") => {
+  return DEFAULT_SERVICES_BY_TYPE[businessType as keyof typeof DEFAULT_SERVICES_BY_TYPE] || DEFAULT_SERVICES_BY_TYPE.Hairstylist;
+};
 
 const EXPERIENCE_OPTIONS = Array.from({ length: 51 }, (_, i) => ({
   value: i,
@@ -52,6 +42,9 @@ export default function ProfileSetupPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  
+  // Get appropriate default services based on user's business type
+  const defaultServices = getDefaultServices(user?.businessType || "Hairstylist");
 
   // State for custom service creation
   const [customServiceName, setCustomServiceName] = useState("");
@@ -377,9 +370,11 @@ export default function ProfileSetupPage() {
               <CardContent className="space-y-6">
                 {/* Preset Services */}
                 <div>
-                  <h4 className="text-sm font-medium mb-4">Common Services</h4>
+                  <h4 className="text-sm font-medium mb-4">
+                    Default Services for {user?.businessType || "Hairstylist"}
+                  </h4>
                   <div className="space-y-4">
-                    {COMMON_SERVICES.map((service) => (
+                    {defaultServices.map((service) => (
                       <div key={service} className="flex items-center space-x-4">
                         <Checkbox
                           id={service}
