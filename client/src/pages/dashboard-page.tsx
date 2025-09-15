@@ -1064,7 +1064,7 @@ export default function DashboardPage() {
 
               {/* QR Code Tab */}
               <TabsContent value="qr-code" className="mt-0">
-                <QRCodeSection user={user} />
+                {user && <QRCodeSection user={user} />}
               </TabsContent>
             </div>
           </Tabs>
