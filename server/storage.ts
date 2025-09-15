@@ -1,6 +1,6 @@
 import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
-import { getSendchampService } from "./sendchamp-service";
+import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -505,17 +505,17 @@ export class DatabaseStorage implements IStorage {
     // First create the delivery record
     const [newDelivery] = await db.insert(couponDeliveries).values(delivery).returning();
     
-    // Now send SMS messages to the targeted recipients
-    await this.processSMSDelivery(newDelivery);
+    // Now send email messages to the targeted recipients
+    await this.processEmailDelivery(newDelivery);
     
-    // Return the updated delivery record with current SMS status
+    // Return the updated delivery record with current email status
     const [updatedDelivery] = await db.select().from(couponDeliveries).where(eq(couponDeliveries.id, newDelivery.id));
     return updatedDelivery || newDelivery;
   }
 
-  private async processSMSDelivery(delivery: CouponDelivery): Promise<void> {
+  private async processEmailDelivery(delivery: CouponDelivery): Promise<void> {
     try {
-      const sendchampService = getSendchampService();
+      const resendEmailService = getResendEmailService();
       
       // Get the coupon details for the message
       const [couponResult] = await db.select().from(coupons).where(eq(coupons.id, delivery.couponId));
@@ -537,22 +537,22 @@ export class DatabaseStorage implements IStorage {
       if (recipients.length === 0) {
         await db.update(couponDeliveries)
           .set({
-            smsStatus: 'no_recipients',
-            smsError: 'No recipients found for delivery',
+            emailStatus: 'no_recipients',
+            emailError: 'No recipients found for delivery',
             sentAt: new Date(),
           })
           .where(eq(couponDeliveries.id, delivery.id));
         return;
       }
       
-      // Filter to only clients with valid phone numbers
-      const recipientsWithPhone = recipients.filter(client => client.phone && client.phone.trim());
+      // Filter to only clients with valid email addresses
+      const recipientsWithEmail = recipients.filter(client => client.email && client.email.trim());
       
-      if (recipientsWithPhone.length === 0) {
+      if (recipientsWithEmail.length === 0) {
         await db.update(couponDeliveries)
           .set({
-            smsStatus: 'no_valid_phones',
-            smsError: 'No recipients with valid phone numbers',
+            emailStatus: 'no_valid_emails',
+            emailError: 'No recipients with valid email addresses',
             sentAt: new Date(),
           })
           .where(eq(couponDeliveries.id, delivery.id));
@@ -564,30 +564,36 @@ export class DatabaseStorage implements IStorage {
       let failCount = 0;
       let errors: string[] = [];
       
-      // Send SMS with limited concurrency to avoid rate limits
-      const concurrency = 5; // Limit concurrent SMS sends
-      for (let i = 0; i < recipientsWithPhone.length; i += concurrency) {
-        const batch = recipientsWithPhone.slice(i, i + concurrency);
+      // Send emails with limited concurrency to avoid rate limits
+      const concurrency = 5; // Limit concurrent email sends
+      for (let i = 0; i < recipientsWithEmail.length; i += concurrency) {
+        const batch = recipientsWithEmail.slice(i, i + concurrency);
         
         const batchPromises = batch.map(async (client) => {
           try {
-            const smsResult = await sendchampService.sendSMS(client.phone!, delivery.message);
+            const emailResult = await resendEmailService.sendCouponEmail(
+              client.email!,
+              coupon.name, // Use coupon name as code
+              delivery.message,
+              new Date(coupon.endDate),
+              'Your Stylist' // TODO: Get business name from stylist profile
+            );
             
-            if (smsResult.success) {
+            if (emailResult.success) {
               sentCount++;
-              console.log(`SMS sent to ${client.firstName} ${client.lastName}: Success`);
+              console.log(`Email sent to ${client.firstName} ${client.lastName}: Success`);
             } else {
               failCount++;
-              errors.push(`${client.firstName} ${client.lastName}: ${smsResult.error}`);
-              console.error(`SMS failed to ${client.firstName} ${client.lastName}: ${smsResult.error}`);
+              errors.push(`${client.firstName} ${client.lastName}: ${emailResult.error}`);
+              console.error(`Email failed to ${client.firstName} ${client.lastName}: ${emailResult.error}`);
             }
             
-            return smsResult;
+            return emailResult;
           } catch (error: any) {
             failCount++;
             const errorMsg = `${client.firstName} ${client.lastName}: ${error.message || 'Unknown error'}`;
             errors.push(errorMsg);
-            console.error(`Failed to send SMS to ${client.firstName} ${client.lastName}:`, error);
+            console.error(`Failed to send email to ${client.firstName} ${client.lastName}:`, error);
             return { success: false, error: errorMsg };
           }
         });
@@ -595,13 +601,13 @@ export class DatabaseStorage implements IStorage {
         await Promise.all(batchPromises);
         
         // Small delay between batches to respect rate limits
-        if (i + concurrency < recipientsWithPhone.length) {
+        if (i + concurrency < recipientsWithEmail.length) {
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
       
       // Update delivery with aggregate results
-      const totalRecipients = recipientsWithPhone.length;
+      const totalRecipients = recipientsWithEmail.length;
       let finalStatus: string;
       let finalError: string | undefined;
       
@@ -617,22 +623,22 @@ export class DatabaseStorage implements IStorage {
       
       await db.update(couponDeliveries)
         .set({
-          smsStatus: finalStatus,
-          smsError: finalError,
+          emailStatus: finalStatus,
+          emailError: finalError,
           sentAt: new Date(),
         })
         .where(eq(couponDeliveries.id, delivery.id));
       
-      console.log(`SMS delivery completed: ${sentCount} sent, ${failCount} failed out of ${totalRecipients} recipients`);
+      console.log(`Email delivery completed: ${sentCount} sent, ${failCount} failed out of ${totalRecipients} recipients`);
       
     } catch (error: any) {
-      console.error('Error processing SMS delivery:', error);
+      console.error('Error processing email delivery:', error);
       
       // Update delivery with general error
       await db.update(couponDeliveries)
         .set({
-          smsStatus: 'failed',
-          smsError: `Delivery processing failed: ${error.message || 'Unknown error'}`,
+          emailStatus: 'failed',
+          emailError: `Delivery processing failed: ${error.message || 'Unknown error'}`,
           sentAt: new Date(),
         })
         .where(eq(couponDeliveries.id, delivery.id));
