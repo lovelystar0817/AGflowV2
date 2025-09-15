@@ -667,51 +667,51 @@ export default function DashboardPage() {
               <TabsList className="w-full justify-start h-auto p-0 bg-transparent rounded-none">
                 <TabsTrigger 
                   value="calendar" 
-                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-calendar"
                 >
                   <Calendar className="h-4 w-4" />
-                  <span>Calendar</span>
+                  <span className="hidden md:inline">Calendar</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="clients" 
-                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-clients"
                 >
                   <Users className="h-4 w-4" />
-                  <span>Clients</span>
+                  <span className="hidden md:inline">Clients</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="services" 
-                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-services"
                 >
                   <Scissors className="h-4 w-4" />
-                  <span>Services</span>
+                  <span className="hidden md:inline">Services</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="coupons" 
-                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-coupons"
                 >
                   <Tags className="h-4 w-4" />
-                  <span>Coupons</span>
+                  <span className="hidden md:inline">Coupons</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="reviews" 
-                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-reviews"
                 >
                   <Star className="h-4 w-4" />
-                  <span>Reviews</span>
+                  <span className="hidden md:inline">Reviews</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="qr-code" 
-                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-qr-code"
                 >
                   <QrCode className="h-4 w-4" />
-                  <span>QR Code</span>
+                  <span className="hidden md:inline">QR Code</span>
                 </TabsTrigger>
               </TabsList>
             </div>
