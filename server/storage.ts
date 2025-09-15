@@ -1,6 +1,6 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -42,6 +42,20 @@ export interface IStorage {
   // Slot management
   getAvailableSlots(stylistId: string, date: string): Promise<string[]>;
   getSlotsCount(stylistId: string, date: string): Promise<{ total: number; available: number }>;
+  
+  // Coupon management
+  getCouponsByStylist(stylistId: string): Promise<Coupon[]>;
+  getCoupon(id: string, stylistId: string): Promise<Coupon | undefined>;
+  createCoupon(coupon: InsertCoupon): Promise<Coupon>;
+  updateCoupon(id: string, stylistId: string, updates: Omit<Partial<InsertCoupon>, 'stylistId'>): Promise<Coupon>;
+  deleteCoupon(id: string, stylistId: string): Promise<void>;
+  getActiveCouponsCount(stylistId: string): Promise<number>;
+  
+  // Coupon delivery management
+  getCouponDeliveries(couponId: string, stylistId: string): Promise<CouponDelivery[]>;
+  createCouponDelivery(delivery: InsertCouponDelivery): Promise<CouponDelivery>;
+  updateCouponDelivery(id: string, stylistId: string, updates: { sentAt?: Date }): Promise<CouponDelivery>;
+  getClientVisitCount(stylistId: string, clientId: string): Promise<number>;
   
   sessionStore: session.Store;
   
@@ -351,6 +365,119 @@ export class DatabaseStorage implements IStorage {
       total: totalSlots,
       available: availableSlots.length
     };
+  }
+
+  // Coupon management methods
+  async getCouponsByStylist(stylistId: string): Promise<Coupon[]> {
+    return await db.select().from(coupons).where(eq(coupons.stylistId, stylistId));
+  }
+
+  async getCoupon(id: string, stylistId: string): Promise<Coupon | undefined> {
+    const [coupon] = await db.select().from(coupons).where(
+      and(eq(coupons.id, id), eq(coupons.stylistId, stylistId))
+    );
+    return coupon || undefined;
+  }
+
+  async createCoupon(coupon: InsertCoupon): Promise<Coupon> {
+    const [newCoupon] = await db.insert(coupons).values(coupon).returning();
+    return newCoupon;
+  }
+
+  async updateCoupon(id: string, stylistId: string, updates: Omit<Partial<InsertCoupon>, 'stylistId'>): Promise<Coupon> {
+    const [updatedCoupon] = await db
+      .update(coupons)
+      .set(updates)
+      .where(and(eq(coupons.id, id), eq(coupons.stylistId, stylistId)))
+      .returning();
+    
+    if (!updatedCoupon) {
+      throw new Error(`No coupon found with id ${id} for stylist ${stylistId}`);
+    }
+    
+    return updatedCoupon;
+  }
+
+  async deleteCoupon(id: string, stylistId: string): Promise<void> {
+    const result = await db
+      .delete(coupons)
+      .where(and(eq(coupons.id, id), eq(coupons.stylistId, stylistId)))
+      .returning({ id: coupons.id });
+    
+    if (result.length === 0) {
+      throw new Error(`No coupon found with id ${id} for stylist ${stylistId}`);
+    }
+  }
+
+  async getActiveCouponsCount(stylistId: string): Promise<number> {
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format in local time
+    const activeCoupons = await db.select().from(coupons).where(
+      and(
+        eq(coupons.stylistId, stylistId),
+        // Active coupons: startDate <= today <= endDate
+        sql`${coupons.startDate} <= ${today}`,
+        sql`${coupons.endDate} >= ${today}`
+      )
+    );
+    return activeCoupons.length;
+  }
+
+  // Coupon delivery management methods
+  async getCouponDeliveries(couponId: string, stylistId: string): Promise<CouponDelivery[]> {
+    // First validate that the coupon belongs to the stylist
+    const coupon = await this.getCoupon(couponId, stylistId);
+    if (!coupon) {
+      throw new Error(`No coupon found with id ${couponId} for stylist ${stylistId}`);
+    }
+    
+    return await db.select().from(couponDeliveries).where(eq(couponDeliveries.couponId, couponId));
+  }
+
+  async createCouponDelivery(delivery: InsertCouponDelivery): Promise<CouponDelivery> {
+    const [newDelivery] = await db.insert(couponDeliveries).values(delivery).returning();
+    return newDelivery;
+  }
+
+  async updateCouponDelivery(id: string, stylistId: string, updates: { sentAt?: Date }): Promise<CouponDelivery> {
+    // First get the delivery and validate ownership through the coupon
+    const [delivery] = await db
+      .select({
+        id: couponDeliveries.id,
+        couponId: couponDeliveries.couponId,
+        recipientType: couponDeliveries.recipientType,
+        clientIds: couponDeliveries.clientIds,
+        logicRule: couponDeliveries.logicRule,
+        scheduledAt: couponDeliveries.scheduledAt,
+        sentAt: couponDeliveries.sentAt,
+        createdAt: couponDeliveries.createdAt,
+        stylistId: coupons.stylistId
+      })
+      .from(couponDeliveries)
+      .innerJoin(coupons, eq(couponDeliveries.couponId, coupons.id))
+      .where(eq(couponDeliveries.id, id));
+    
+    if (!delivery || delivery.stylistId !== stylistId) {
+      throw new Error(`No coupon delivery found with id ${id} for stylist ${stylistId}`);
+    }
+    
+    const [updatedDelivery] = await db
+      .update(couponDeliveries)
+      .set(updates)
+      .where(eq(couponDeliveries.id, id))
+      .returning();
+    
+    return updatedDelivery;
+  }
+
+  async getClientVisitCount(stylistId: string, clientId: string): Promise<number> {
+    const completedAppointments = await db.select().from(appointments).where(
+      and(
+        eq(appointments.stylistId, stylistId),
+        eq(appointments.clientId, clientId),
+        eq(appointments.status, 'completed')
+      )
+    );
+    return completedAppointments.length;
   }
 
   // Legacy methods for compatibility with auth blueprint
