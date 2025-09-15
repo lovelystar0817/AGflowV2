@@ -156,6 +156,14 @@ export default function PublicBookingPage() {
     return filterAvailableSlots(allSlots, bookedSlots);
   };
 
+  // Convert 24-hour format to 12-hour format for display consistency
+  const convertTo12Hour = (time24: string): string => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const ampm = hours < 12 ? 'AM' : 'PM';
+    return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
+
   const selectedService = services?.find(s => s.id === watchServiceId);
 
   // Loading state
@@ -212,7 +220,7 @@ export default function PublicBookingPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
-                <span>Time: {form.getValues("startTime")}</span>
+                <span>Time: {convertTo12Hour(form.getValues("startTime"))}</span>
               </div>
             </div>
           </CardContent>
@@ -425,7 +433,7 @@ export default function PublicBookingPage() {
                                         onClick={() => field.onChange(slot)}
                                         data-testid={`time-slot-${slot.replace(':', '-')}`}
                                       >
-                                        {slot}
+                                        {convertTo12Hour(slot)}
                                       </Button>
                                     ))}
                                   </div>
