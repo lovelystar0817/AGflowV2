@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
@@ -85,7 +86,8 @@ import {
   CalendarDays,
   Clock,
   TrendingUp,
-  Ticket
+  Ticket,
+  Send
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -102,6 +104,15 @@ import {
 } from "@/components/ui/tooltip";
 
 type ServiceFormData = z.infer<typeof serviceFormSchema>;
+
+// Shared helper function for consistent coupon active status determination
+const isCouponActive = (coupon: Coupon, now?: Date): boolean => {
+  const currentTime = now || new Date();
+  // Use endOfDay comparison to ensure coupons are valid until end of expiry date
+  // Use startOfDay comparison to ensure coupons are counted from start of valid date
+  return endOfDay(new Date(coupon.endDate)) >= startOfDay(currentTime) && 
+         (!coupon.startDate || startOfDay(new Date(coupon.startDate)) <= endOfDay(currentTime));
+};
 
 export default function DashboardPage() {
   const { user, logoutMutation } = useAuth();
@@ -137,13 +148,7 @@ export default function DashboardPage() {
   });
 
   // Count active coupons (not expired)
-  const activeCouponsCount = coupons.filter((coupon) => {
-    const now = new Date();
-    // Use endOfDay comparison to ensure coupons are valid until end of expiry date
-    // Use startOfDay comparison to ensure coupons are counted from start of valid date
-    return endOfDay(new Date(coupon.endDate)) >= startOfDay(now) && 
-           (!coupon.startDate || startOfDay(new Date(coupon.startDate)) <= endOfDay(now));
-  }).length;
+  const activeCouponsCount = coupons.filter((coupon) => isCouponActive(coupon)).length;
 
   // Get today's date string
   const today = format(new Date(), "yyyy-MM-dd");
@@ -922,20 +927,107 @@ export default function DashboardPage() {
               <TabsContent value="coupons" className="mt-0">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-card-foreground">Coupon Management</h2>
-                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-create-coupon">
+                  <Button 
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground" 
+                    onClick={() => setLocation("/coupons/create")}
+                    data-testid="button-create-coupon"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Create Coupon
                   </Button>
                 </div>
                 
-                <div className="bg-muted rounded-lg p-8 text-center">
-                  <div className="max-w-sm mx-auto">
-                    <div className="h-16 w-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Tags className="h-8 w-8 text-primary" />
-                    </div>
-                    <h3 className="text-lg font-medium text-card-foreground mb-2">Promo Engine Coming Soon</h3>
-                    <p className="text-muted-foreground">Create and manage promotional campaigns to attract and retain customers.</p>
-                  </div>
+                {/* Coupon List */}
+                <div className="space-y-4">
+                  {couponsLoading ? (
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                          <span className="ml-2">Loading coupons...</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : coupons.length > 0 ? (
+                    coupons.map((coupon) => {
+                      const isActive = isCouponActive(coupon);
+                      
+                      return (
+                        <Card key={coupon.id} className="border border-border">
+                          <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3 mb-2">
+                                  <h3 className="font-semibold text-lg" data-testid={`coupon-name-${coupon.id}`}>
+                                    {coupon.name}
+                                  </h3>
+                                  <Badge variant={isActive ? "default" : "secondary"}>
+                                    {isActive ? "Active" : "Expired"}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {coupon.type === "percent" ? `${coupon.amount}% OFF` : `$${coupon.amount} OFF`}
+                                  </Badge>
+                                </div>
+                                <div className="text-sm text-muted-foreground space-y-1">
+                                  <p>Valid from {coupon.startDate} to {coupon.endDate}</p>
+                                  {coupon.serviceId && services && (
+                                    <p>Target Service: {services.find(s => s.id === coupon.serviceId)?.serviceName || "All Services"}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2 ml-4">
+                                {isActive && (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => setLocation(`/coupons/${coupon.id}/send`)}
+                                    data-testid={`button-send-coupon-${coupon.id}`}
+                                  >
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Send
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    // TODO: Add edit functionality in future
+                                    toast({
+                                      title: "Edit coupon",
+                                      description: "Edit functionality coming soon!",
+                                    });
+                                  }}
+                                  data-testid={`button-edit-coupon-${coupon.id}`}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  ) : (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <div className="max-w-sm mx-auto">
+                          <div className="h-16 w-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Ticket className="h-8 w-8 text-primary" />
+                          </div>
+                          <h3 className="text-lg font-medium text-card-foreground mb-2">No Coupons Yet</h3>
+                          <p className="text-muted-foreground mb-4">Create your first promotional coupon to attract and retain customers.</p>
+                          <Button 
+                            onClick={() => setLocation("/coupons/create")}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                            data-testid="button-create-first-coupon"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create Your First Coupon
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </TabsContent>
 
