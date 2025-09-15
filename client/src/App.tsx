@@ -12,6 +12,7 @@ import ProfileSetupPage from "@/pages/profile-setup-page";
 import DailyAvailabilityPage from "@/pages/daily-availability-page";
 import CouponCreatePage from "@/pages/coupon-create-page";
 import CouponSendPage from "@/pages/coupon-send-page";
+import PublicBookingPage from "@/pages/public-booking-page";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
       <ProtectedRoute path="/coupons/create" component={CouponCreatePage} />
       <ProtectedRoute path="/coupons/:id/send" component={CouponSendPage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/book/:stylistId" component={PublicBookingPage} />
       <Route component={NotFound} />
     </Switch>
   );

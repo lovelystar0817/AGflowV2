@@ -868,7 +868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating public booking:", error);
       
       // Handle specific error cases
-      if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
+      if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         return res.status(409).json({ 
           error: "This time slot is already booked. Please choose a different time." 
         });
