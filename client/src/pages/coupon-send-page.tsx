@@ -11,6 +11,7 @@ import {
   type Client,
   type StylistService,
   type MessageTemplateKey,
+  type Stylist,
 } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +52,11 @@ export default function CouponSendPage() {
   // Fetch services for coupon context
   const { data: services } = useQuery<StylistService[]>({
     queryKey: ["/api/services"],
+  });
+  
+  // Fetch current user/stylist data for business name
+  const { data: user } = useQuery<Stylist>({
+    queryKey: ["/api/user"],
   });
 
   const form = useForm<CouponDeliveryFormData>({
@@ -137,7 +143,7 @@ export default function CouponSendPage() {
       ? services.find(s => s.id === coupon.serviceId)
       : undefined;
     
-    const populatedMessage = replaceMessagePlaceholders(template, coupon, service);
+    const populatedMessage = replaceMessagePlaceholders(template, coupon, service, user);
     
     form.setValue("messageTemplate", templateKey);
     form.setValue("message", populatedMessage);

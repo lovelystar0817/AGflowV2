@@ -531,9 +531,9 @@ export function getSlotEndTime(startTime: string, durationHours: number = 1): st
 
 // Message templates for coupon delivery
 export const MESSAGE_TEMPLATES = {
-  new_client: "Hi there! I'm excited to welcome you as a new client. Here's a special [DISCOUNT]% off your first visit. Use it before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
-  general_promo: "Hey! I'm running a limited-time offer: [DISCOUNT]% off [SERVICE_NAME]. Book before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
-  loyalty_reward: "Thanks for being a loyal client! You've earned [DISCOUNT]% off your next [SERVICE_NAME]. You can redeem it anytime before [EXPIRY_DATE]. See you soon! and make sure to save and show this coupon code upon arrival."
+  new_client: "Hi! [BUSINESS_NAME] here. I'm excited to welcome you as a new client. Here's a special [DISCOUNT]% off your first visit. Use it before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
+  general_promo: "Hi! [BUSINESS_NAME] here. I'm running a limited-time offer: [DISCOUNT]% off [SERVICE_NAME]. Book before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
+  loyalty_reward: "Hi! [BUSINESS_NAME] here. Thanks for being a loyal client! You've earned [DISCOUNT]% off your next [SERVICE_NAME]. You can redeem it anytime before [EXPIRY_DATE]. See you soon! Make sure to save and show this coupon code upon arrival."
 } as const;
 
 export type MessageTemplateKey = keyof typeof MESSAGE_TEMPLATES;
@@ -548,7 +548,8 @@ export const MESSAGE_TEMPLATE_LABELS = {
 export function replaceMessagePlaceholders(
   template: string,
   coupon: Coupon,
-  service?: { serviceName: string }
+  service?: { serviceName: string },
+  stylist?: { firstName?: string | null; lastName?: string | null; email?: string } | null
 ): string {
   // Format the end date for display
   const endDate = new Date(coupon.endDate).toLocaleDateString('en-US', {
@@ -559,11 +560,19 @@ export function replaceMessagePlaceholders(
 
   const serviceName = service ? service.serviceName : "All Services";
   const discount = coupon.type === "percent" ? Math.round(parseFloat(coupon.amount)) : `$${coupon.amount}`;
+  
+  // Create business name from stylist info or fallback
+  const businessName = stylist 
+    ? (stylist.firstName && stylist.lastName 
+        ? `${stylist.firstName} ${stylist.lastName}` 
+        : stylist.email?.split('@')[0] || "Your Stylist")
+    : "Your Stylist";
 
   return template
     .replace(/\[DISCOUNT\]/g, discount.toString())
     .replace(/\[SERVICE_NAME\]/g, serviceName)
-    .replace(/\[EXPIRY_DATE\]/g, endDate);
+    .replace(/\[EXPIRY_DATE\]/g, endDate)
+    .replace(/\[BUSINESS_NAME\]/g, businessName);
 }
 
 // Legacy exports for compatibility with auth blueprint
