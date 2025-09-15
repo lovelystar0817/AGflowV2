@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -512,6 +512,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(slotCounts);
     } catch (error) {
       console.error("Error fetching slot counts:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Coupon management routes
+  app.get("/api/coupons", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const coupons = await storage.getCouponsByStylist(req.user.id);
+      res.json(coupons);
+    } catch (error) {
+      console.error("Error fetching coupons:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/coupons/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const coupon = await storage.getCoupon(req.params.id, req.user.id);
+      if (!coupon) {
+        return res.status(404).json({ error: "Coupon not found" });
+      }
+      
+      res.json(coupon);
+    } catch (error) {
+      console.error("Error fetching coupon:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/coupons", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const validation = insertCouponSchema.safeParse({
+        ...req.body,
+        stylistId: req.user.id,
+      });
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
+      }
+      
+      const coupon = await storage.createCoupon(validation.data);
+      res.status(201).json(coupon);
+    } catch (error) {
+      console.error("Error creating coupon:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/coupons/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const updateSchema = z.object({
+        name: z.string().min(1).max(100).optional(),
+        type: z.enum(["percent", "flat"]).optional(),
+        amount: z.string().refine((val) => {
+          const num = parseFloat(val);
+          return !isNaN(num) && num > 0 && num <= 9999.99;
+        }, "Amount must be a valid number between 0.01 and 9999.99").optional(),
+        serviceId: z.number().int().positive().optional(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
+      }).superRefine((data, ctx) => {
+        // Validate percentage range for percent type
+        if (data.type === "percent" && data.amount) {
+          const num = parseFloat(data.amount);
+          if (num < 0 || num > 100) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Percentage must be between 0 and 100",
+              path: ["amount"]
+            });
+          }
+        }
+        // Validate end date is after start date
+        if (data.startDate && data.endDate) {
+          const start = new Date(data.startDate);
+          const end = new Date(data.endDate);
+          if (end <= start) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "End date must be after start date",
+              path: ["endDate"]
+            });
+          }
+        }
+      });
+      const validation = updateSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
+      }
+      
+      const updatedCoupon = await storage.updateCoupon(req.params.id, req.user.id, validation.data);
+      res.json(updatedCoupon);
+    } catch (error) {
+      console.error("Error updating coupon:", error);
+      if (error instanceof Error && error.message.includes("No coupon found")) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/coupons/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      await storage.deleteCoupon(req.params.id, req.user.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting coupon:", error);
+      if (error instanceof Error && error.message.includes("No coupon found")) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Coupon delivery management routes
+  app.get("/api/coupon-deliveries/:couponId", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const deliveries = await storage.getCouponDeliveries(req.params.couponId, req.user.id);
+      res.json(deliveries);
+    } catch (error) {
+      console.error("Error fetching coupon deliveries:", error);
+      if (error instanceof Error && error.message.includes("No coupon found")) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/coupon-deliveries", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const validation = insertCouponDeliverySchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid coupon delivery data", details: validation.error.errors });
+      }
+      
+      // Validate that the coupon belongs to the authenticated stylist
+      const coupon = await storage.getCoupon(validation.data.couponId, req.user.id);
+      if (!coupon) {
+        return res.status(404).json({ error: "Coupon not found" });
+      }
+      
+      const delivery = await storage.createCouponDelivery(validation.data);
+      res.status(201).json(delivery);
+    } catch (error) {
+      console.error("Error creating coupon delivery:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/coupon-deliveries/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const updateSchema = z.object({
+        sentAt: z.date().optional(),
+      });
+      
+      const validation = updateSchema.safeParse({
+        ...req.body,
+        sentAt: req.body.sentAt ? new Date(req.body.sentAt) : undefined,
+      });
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid delivery data", details: validation.error.errors });
+      }
+      
+      const updatedDelivery = await storage.updateCouponDelivery(req.params.id, req.user.id, validation.data);
+      res.json(updatedDelivery);
+    } catch (error) {
+      console.error("Error updating coupon delivery:", error);
+      if (error instanceof Error && error.message.includes("No coupon delivery found")) {
+        return res.status(404).json({ error: error.message });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });

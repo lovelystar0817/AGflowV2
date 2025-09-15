@@ -1,7 +1,14 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, uuid, varchar, json, integer, serial, decimal, boolean, date, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, varchar, json, jsonb, integer, serial, decimal, boolean, date, uniqueIndex, pgEnum, check, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Session table for authentication
+export const sessions = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire", { mode: "date" }).notNull(),
+});
 
 export const stylists = pgTable("stylists", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -140,7 +147,7 @@ export const stylistAvailability = pgTable("stylist_availability", {
   stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
   date: date("date").notNull(),
   isOpen: boolean("is_open").notNull().default(true),
-  timeRanges: json("time_ranges").$type<{ start: string; end: string }[]>().notNull().default(sql`'[]'::jsonb`),
+  timeRanges: jsonb("time_ranges").$type<{ start: string; end: string }[]>().notNull().default(sql`'[]'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -241,6 +248,172 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
 
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type Appointment = typeof appointments.$inferSelect;
+
+// Coupon type enum for database integrity
+export const couponTypeEnum = pgEnum("coupon_type", ["percent", "flat"]);
+
+// Coupons table for promotional offers
+export const coupons = pgTable("coupons", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // Will change to enum after zero-drift
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  serviceId: integer("service_id").references(() => stylistServices.id), // Optional - can be null for general coupons
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}); // Removed constraints and indexes for zero-drift
+
+// Frontend coupon form schema (includes duration helper)
+export const couponFormSchema = z.object({
+  name: z.string().min(1, "Coupon name is required").max(100, "Coupon name must be 100 characters or less"),
+  type: z.enum(["percent", "flat"], { required_error: "Discount type is required" }),
+  amount: z.string().refine((val) => {
+    const num = parseFloat(val);
+    return !isNaN(num) && num > 0 && num <= 9999.99;
+  }, "Amount must be a valid number between 0.01 and 9999.99"),
+  serviceId: z.number().int().positive().optional(),
+  duration: z.enum(["2weeks", "1month", "3months"], { required_error: "Duration is required" }),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+}).refine((data) => {
+  // Validate percentage range for percent type
+  if (data.type === "percent") {
+    const num = parseFloat(data.amount);
+    return num >= 0 && num <= 100;
+  }
+  return true;
+}, {
+  message: "Percentage must be between 0 and 100",
+  path: ["amount"]
+});
+
+// Unified coupon insertion schema with all validations
+export const insertCouponSchema = createInsertSchema(coupons).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  amount: z.string().refine((val) => {
+    const num = parseFloat(val);
+    return !isNaN(num) && num > 0 && num <= 9999.99;
+  }, "Amount must be a valid number between 0.01 and 9999.99"),
+}).superRefine((data, ctx) => {
+  // Validate percentage range for percent type
+  if (data.type === "percent") {
+    const num = parseFloat(data.amount);
+    if (num < 0 || num > 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Percentage must be between 0 and 100",
+        path: ["amount"]
+      });
+    }
+  }
+  
+  // Validate end date is after start date
+  if (data.startDate && data.endDate) {
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
+    if (end <= start) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date must be after start date",
+        path: ["endDate"]
+      });
+    }
+  }
+});
+
+export type InsertCoupon = z.infer<typeof insertCouponSchema>;
+export type Coupon = typeof coupons.$inferSelect;
+
+// Coupon deliveries table for tracking who coupons were sent to
+export const couponDeliveries = pgTable("coupon_deliveries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  couponId: uuid("coupon_id").notNull().references(() => coupons.id), // Will add cascade after zero-drift
+  recipientType: text("recipient_type").notNull(), // 'all' | 'custom' | 'logic'
+  clientIds: jsonb("client_ids").$type<string[]>().default(sql`'[]'::jsonb`), // Array of client IDs for custom targeting
+  logicRule: text("logic_rule"), // 'first_time' | 'after_2_visits' for logic-based targeting
+  scheduledAt: timestamp("scheduled_at").defaultNow(),  // Default to now for "send now" functionality
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}); // Removed indexes for zero-drift
+
+// Frontend coupon delivery form schema
+export const couponDeliveryFormSchema = z.object({
+  couponId: z.string().uuid("Invalid coupon ID"),
+  recipientType: z.enum(["all", "custom", "logic"], { required_error: "Recipient type is required" }),
+  clientIds: z.array(z.string().uuid()).optional(),
+  logicRule: z.enum(["first_time", "after_2_visits"]).optional(),
+  scheduledAt: z.string().datetime("Invalid datetime format").optional(), // Optional for "send now"
+}).refine((data) => {
+  // Ensure clientIds is provided when recipientType is 'custom'
+  if (data.recipientType === "custom" && (!data.clientIds || data.clientIds.length === 0)) {
+    return false;
+  }
+  // Ensure logicRule is provided when recipientType is 'logic'
+  if (data.recipientType === "logic" && !data.logicRule) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Custom targeting requires client IDs, logic targeting requires a rule",
+});
+
+export const insertCouponDeliverySchema = createInsertSchema(couponDeliveries).omit({
+  id: true,
+  createdAt: true,
+  clientIds: true, // Handle separately for proper validation
+}).extend({
+  clientIds: z.array(z.string().uuid()).default([]),
+}).superRefine((data, ctx) => {
+  // Ensure clientIds is provided when recipientType is 'custom'
+  if (data.recipientType === "custom" && (!data.clientIds || data.clientIds.length === 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Custom targeting requires at least one client ID",
+      path: ["clientIds"]
+    });
+  }
+  // Ensure logicRule is provided when recipientType is 'logic'
+  if (data.recipientType === "logic" && !data.logicRule) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Logic targeting requires a rule",
+      path: ["logicRule"]
+    });
+  }
+});
+
+export type InsertCouponDelivery = z.infer<typeof insertCouponDeliverySchema>;
+export type CouponDelivery = typeof couponDeliveries.$inferSelect;
+
+// Helper functions for coupon management
+export function calculateCouponEndDate(startDate: string, duration: "2weeks" | "1month" | "3months"): string {
+  const start = new Date(startDate);
+  let endDate: Date;
+  
+  switch (duration) {
+    case "2weeks":
+      endDate = new Date(start.getTime() + (14 * 24 * 60 * 60 * 1000));
+      break;
+    case "1month":
+      endDate = new Date(start);
+      endDate.setMonth(endDate.getMonth() + 1);
+      break;
+    case "3months":
+      endDate = new Date(start);
+      endDate.setMonth(endDate.getMonth() + 3);
+      break;
+  }
+  
+  return endDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+}
+
+export function isCouponActive(coupon: Coupon): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  return today >= coupon.startDate && today <= coupon.endDate;
+}
 
 // Helper functions for slot management
 export function generateHourlySlots(timeRanges: TimeRange[]): string[] {
