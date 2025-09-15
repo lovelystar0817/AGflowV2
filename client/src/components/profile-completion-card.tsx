@@ -3,6 +3,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { X, User, AlertCircle } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ProfileCompletionCardProps {
   onDismiss?: () => void;
@@ -11,6 +12,7 @@ interface ProfileCompletionCardProps {
 export function ProfileCompletionCard({ onDismiss }: ProfileCompletionCardProps) {
   const [isVisible, setIsVisible] = useState(true);
   const [, navigate] = useLocation();
+  const { user } = useAuth();
 
   const handleCompleteProfile = () => {
     navigate("/profile-setup");
@@ -18,17 +20,22 @@ export function ProfileCompletionCard({ onDismiss }: ProfileCompletionCardProps)
 
   const handleDismiss = () => {
     setIsVisible(false);
-    localStorage.setItem("profile-completion-dismissed", "true");
+    if (user?.id) {
+      localStorage.setItem(`profile-completion-dismissed-${user.id}`, "true");
+    }
     onDismiss?.();
   };
 
-  // Check if card was previously dismissed
+  // Check if card was previously dismissed for this user
   useEffect(() => {
-    const dismissed = localStorage.getItem("profile-completion-dismissed");
-    if (dismissed === "true") {
-      setIsVisible(false);
+    if (user?.id) {
+      const dismissed = localStorage.getItem(`profile-completion-dismissed-${user.id}`) === "true";
+      setIsVisible(!dismissed);
+    } else {
+      // Reset to visible when no user (during login/logout transitions)
+      setIsVisible(true);
     }
-  }, []);
+  }, [user?.id]);
 
   if (!isVisible) {
     return null;
