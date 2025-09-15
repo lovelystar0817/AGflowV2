@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { 
   startOfMonth, 
@@ -123,6 +123,11 @@ export default function DashboardPage() {
   const [showProfileCompletion, setShowProfileCompletion] = useState(
     user ? !isProfileComplete(user) : false
   );
+
+  // Update profile completion visibility when user changes
+  useEffect(() => {
+    setShowProfileCompletion(user ? !isProfileComplete(user) : false);
+  }, [user]);
 
   // Services management state
   const [editingService, setEditingService] = useState<StylistService | null>(null);
