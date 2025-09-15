@@ -11,7 +11,9 @@ import {
   isSameMonth, 
   isToday,
   addMonths,
-  subMonths
+  subMonths,
+  startOfDay,
+  endOfDay
 } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -19,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
-import { isProfileComplete, serviceFormSchema, type StylistService, type Client } from "@shared/schema";
+import { isProfileComplete, serviceFormSchema, type StylistService, type Client, type Coupon } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -82,7 +84,8 @@ import {
   ChevronRight,
   CalendarDays,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Ticket
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -127,6 +130,20 @@ export default function DashboardPage() {
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
   });
+
+  // Active coupons query for dashboard stats
+  const { data: coupons = [], isLoading: couponsLoading } = useQuery<Coupon[]>({
+    queryKey: ["/api/coupons"],
+  });
+
+  // Count active coupons (not expired)
+  const activeCouponsCount = coupons.filter((coupon) => {
+    const now = new Date();
+    // Use endOfDay comparison to ensure coupons are valid until end of expiry date
+    // Use startOfDay comparison to ensure coupons are counted from start of valid date
+    return endOfDay(new Date(coupon.endDate)) >= startOfDay(now) && 
+           (!coupon.startDate || startOfDay(new Date(coupon.startDate)) <= endOfDay(now));
+  }).length;
 
   // Get today's date string
   const today = format(new Date(), "yyyy-MM-dd");
@@ -485,6 +502,15 @@ export default function DashboardPage() {
       iconColor: "text-purple-600 dark:text-purple-400",
       tooltip: "Total number of clients in your database",
       isLoading: false
+    },
+    {
+      title: "Active Coupons",
+      value: couponsLoading ? "..." : activeCouponsCount.toString(),
+      icon: Ticket,
+      bgColor: "bg-orange-50 dark:bg-orange-950",
+      iconColor: "text-orange-600 dark:text-orange-400",
+      tooltip: "Number of active coupons that haven't expired yet",
+      isLoading: couponsLoading
     }
   ];
 
@@ -579,7 +605,7 @@ export default function DashboardPage() {
           
           {/* Quick Stats */}
           <TooltipProvider>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mt-6">
               {stats.map((stat, index) => (
                 <Tooltip key={index}>
                   <TooltipTrigger asChild>
