@@ -724,6 +724,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Additional API routes can be added here
   // prefix all routes with /api
 
+  // Public booking API routes (no authentication required)
+  app.get("/api/public/stylist/:id", async (req, res) => {
+    try {
+      const stylist = await storage.getStylist(req.params.id);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      
+      // Return only public information
+      const publicStylist = {
+        id: stylist.id,
+        firstName: stylist.firstName,
+        lastName: stylist.lastName,
+        businessName: stylist.businessName,
+        location: stylist.location,
+        bio: stylist.bio,
+        instagramHandle: stylist.instagramHandle,
+        businessHours: stylist.businessHours,
+      };
+      
+      res.json(publicStylist);
+    } catch (error) {
+      console.error("Error fetching public stylist:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/public/services/:stylistId", async (req, res) => {
+    try {
+      const services = await storage.getStylistServices(req.params.stylistId);
+      res.json(services);
+    } catch (error) {
+      console.error("Error fetching public services:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/public/availability/:stylistId/:date", async (req, res) => {
+    try {
+      const { stylistId, date } = req.params;
+      
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+      }
+
+      const availability = await storage.getStylistAvailability(stylistId, date);
+      res.json(availability);
+    } catch (error) {
+      console.error("Error fetching public availability:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/public/book/:stylistId", async (req, res) => {
+    try {
+      const { stylistId } = req.params;
+      const { firstName, lastName, phone, email, serviceId, date, startTime } = req.body;
+
+      // Validate required fields
+      if (!firstName || !lastName || !phone || !serviceId || !date || !startTime) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Validate stylist exists
+      const stylist = await storage.getStylist(stylistId);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+
+      // Check if service belongs to this stylist
+      const services = await storage.getStylistServices(stylistId);
+      const service = services.find(s => s.id === parseInt(serviceId));
+      if (!service) {
+        return res.status(400).json({ error: "Invalid service for this stylist" });
+      }
+
+      // Create or find existing client
+      let client;
+      const existingClients = await storage.getClientsByStylist(stylistId);
+      const existingClient = existingClients.find(c => 
+        c.phone === phone && c.firstName === firstName && c.lastName === lastName
+      );
+
+      if (existingClient) {
+        client = existingClient;
+        
+        // Update client with any new email information
+        if (email && email !== existingClient.email) {
+          const updatedClient = await storage.updateClient(existingClient.id, { email });
+          client = updatedClient;
+        }
+      } else {
+        // Create new client
+        const newClient = await storage.createClient({
+          stylistId,
+          firstName,
+          lastName,
+          phone,
+          email: email || null,
+          notes: "Created via public booking"
+        });
+        client = newClient;
+      }
+
+      // Calculate end time based on service duration (assume 1 hour default)
+      const startHour = parseInt(startTime.split(':')[0]);
+      const startMinute = parseInt(startTime.split(':')[1]);
+      const endHour = startMinute >= 30 ? startHour + 2 : startHour + 1;
+      const endMinute = startMinute >= 30 ? startMinute - 30 : startMinute + 30;
+      const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+      // Create appointment
+      const appointment = await storage.createAppointment({
+        stylistId,
+        clientId: client.id,
+        serviceId: service.id,
+        date,
+        startTime,
+        endTime,
+        status: 'confirmed',
+        notes: 'Booked via public booking page',
+        totalPrice: service.price
+      });
+
+      res.status(201).json({
+        appointment,
+        client: {
+          id: client.id,
+          firstName: client.firstName,
+          lastName: client.lastName,
+          phone: client.phone,
+          email: client.email
+        },
+        service: {
+          id: service.id,
+          serviceName: service.serviceName,
+          price: service.price
+        }
+      });
+    } catch (error) {
+      console.error("Error creating public booking:", error);
+      
+      // Handle specific error cases
+      if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
+        return res.status(409).json({ 
+          error: "This time slot is already booked. Please choose a different time." 
+        });
+      }
+      
+      res.status(500).json({ error: "Failed to create booking" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
