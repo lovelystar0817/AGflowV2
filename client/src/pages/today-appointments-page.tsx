@@ -1,14 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowLeft, CalendarCheck, Clock, User, Phone, DollarSign } from "lucide-react";
 import { type Appointment } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+
+type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
 
 // Extended appointment type with client and service details
 interface AppointmentWithDetails extends Appointment {
+  status: AppointmentStatus;
   client: {
     id: string;
     name: string;
@@ -22,8 +34,39 @@ interface AppointmentWithDetails extends Appointment {
   };
 }
 
+const getStatusColor = (status: AppointmentStatus): "default" | "destructive" | "outline" | "secondary" => {
+  switch (status) {
+    case "scheduled":
+      return "default";
+    case "completed":
+      return "default";
+    case "cancelled":
+      return "destructive";
+    case "no_show":
+      return "outline";
+    default:
+      return "secondary";
+  }
+};
+
+const getStatusLabel = (status: AppointmentStatus): string => {
+  switch (status) {
+    case "scheduled":
+      return "Scheduled";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    case "no_show":
+      return "No Show";
+    default:
+      return status;
+  }
+};
+
 export default function TodayAppointmentsPage() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const today = format(new Date(), "yyyy-MM-dd");
 
   // Convert 24-hour format to 12-hour format for display consistency
@@ -36,8 +79,43 @@ export default function TodayAppointmentsPage() {
 
   // Query to get today's appointments with client and service details
   const { data: appointments = [], isLoading } = useQuery<AppointmentWithDetails[]>({
-    queryKey: [`/api/appointments/details?date=${today}`],
+    queryKey: ["/api/appointments/today"],
   });
+
+  // Mutation to update appointment status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: AppointmentStatus }) => {
+      const response = await fetch(`/api/appointments/${appointmentId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update appointment status');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments/today"] });
+      toast({
+        title: "Status Updated",
+        description: "Appointment status has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update appointment status. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStatusUpdate = (appointmentId: string, newStatus: AppointmentStatus) => {
+    updateStatusMutation.mutate({ appointmentId, status: newStatus });
+  };
 
   const handleBackToDashboard = () => {
     setLocation("/");
@@ -161,10 +239,10 @@ export default function TodayAppointmentsPage() {
                           </span>
                         </div>
                         <Badge 
-                          variant={appointment.status === "confirmed" ? "default" : "secondary"}
+                          variant={getStatusColor(appointment.status)}
                           data-testid={`status-${appointment.id}`}
                         >
-                          {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                          {getStatusLabel(appointment.status)}
                         </Badge>
                       </div>
 
@@ -209,6 +287,37 @@ export default function TodayAppointmentsPage() {
                             </p>
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Status Update Section */}
+                    <div className="mt-4 pt-4 border-t border-muted">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium text-muted-foreground">Update Status:</div>
+                        <Select
+                          value={appointment.status}
+                          onValueChange={(value: AppointmentStatus) => handleStatusUpdate(appointment.id, value)}
+                          disabled={updateStatusMutation.isPending}
+                          data-testid={`status-select-${appointment.id}`}
+                        >
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="scheduled" data-testid={`status-option-scheduled-${appointment.id}`}>
+                              Scheduled
+                            </SelectItem>
+                            <SelectItem value="completed" data-testid={`status-option-completed-${appointment.id}`}>
+                              Completed
+                            </SelectItem>
+                            <SelectItem value="cancelled" data-testid={`status-option-cancelled-${appointment.id}`}>
+                              Cancelled
+                            </SelectItem>
+                            <SelectItem value="no_show" data-testid={`status-option-no-show-${appointment.id}`}>
+                              No Show
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>

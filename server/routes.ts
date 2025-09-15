@@ -473,6 +473,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Today's appointments route
+  app.get("/api/appointments/today", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
+      const appointments = await storage.getAppointmentsWithDetails(req.user.id, today);
+      
+      res.json(appointments);
+    } catch (error) {
+      console.error("Error fetching today's appointments:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update appointment status route
+  app.patch("/api/appointments/:id/status", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const { id } = req.params;
+      const statusSchema = z.object({
+        status: z.enum(["scheduled", "completed", "cancelled", "no_show"]),
+      });
+      
+      const validation = statusSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid status value", details: validation.error.errors });
+      }
+      
+      // First check if the appointment exists and belongs to this stylist
+      const appointment = await storage.getAppointment(id);
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      
+      if (appointment.stylistId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updatedAppointment = await storage.updateAppointment(id, { status: validation.data.status });
+      
+      res.json(updatedAppointment);
+    } catch (error) {
+      console.error("Error updating appointment status:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/appointments", async (req, res) => {
     try {
       if (!req.user) {
