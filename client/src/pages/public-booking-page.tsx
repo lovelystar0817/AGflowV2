@@ -76,7 +76,11 @@ export default function PublicBookingPage() {
     queryKey: ["/api/public/availability", stylistId, selectedDate?.toISOString()],
     queryFn: async () => {
       if (!selectedDate) return null;
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      // Use local date formatting to avoid timezone issues
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
       const response = await fetch(`/api/public/availability/${stylistId}/${dateStr}`);
       if (!response.ok) throw new Error("Failed to load availability");
       return response.json();
@@ -104,7 +108,13 @@ export default function PublicBookingPage() {
         phone: data.phone,
         email: data.email,
         serviceId: data.serviceId,
-        date: data.date.toISOString().split('T')[0],
+        date: (() => {
+          // Use local date formatting to avoid timezone issues
+          const year = data.date.getFullYear();
+          const month = String(data.date.getMonth() + 1).padStart(2, '0');
+          const day = String(data.date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })(),
         startTime: data.startTime,
       });
       return response.json();
@@ -364,9 +374,11 @@ export default function PublicBookingPage() {
                           field.onChange(date);
                           setSelectedDate(date);
                         }}
-                        disabled={(date) =>
-                          date < new Date() || date < new Date("1900-01-01")
-                        }
+                        disabled={(date) => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0); // Reset to start of day
+                          return date < today;
+                        }}
                         initialFocus
                         className="rounded-md border"
                       />
