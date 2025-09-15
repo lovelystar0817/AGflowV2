@@ -531,9 +531,9 @@ export function getSlotEndTime(startTime: string, durationHours: number = 1): st
 
 // Message templates for coupon delivery
 export const MESSAGE_TEMPLATES = {
-  new_client: "Hi! [BUSINESS_NAME] here. I'm excited to welcome you as a new client. Here's a special [DISCOUNT]% off your first visit. Use it before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
-  general_promo: "Hi! [BUSINESS_NAME] here. I'm running a limited-time offer: [DISCOUNT]% off [SERVICE_NAME]. Book before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
-  loyalty_reward: "Hi! [BUSINESS_NAME] here. Thanks for being a loyal client! You've earned [DISCOUNT]% off your next [SERVICE_NAME]. You can redeem it anytime before [EXPIRY_DATE]. See you soon! Make sure to save and show this coupon code upon arrival."
+  new_client: "Hi! [BUSINESS_NAME] here. I'm excited to welcome you as a new client. Here's a special [DISCOUNT]% off your first visit. Use it before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival. Reply STOP to opt out. Msg & data rates may apply.",
+  general_promo: "Hi! [BUSINESS_NAME] here. I'm running a limited-time offer: [DISCOUNT]% off [SERVICE_NAME]. Book before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival. Reply STOP to opt out. Msg & data rates may apply.",
+  loyalty_reward: "Hi! [BUSINESS_NAME] here. Thanks for being a loyal client! You've earned [DISCOUNT]% off your next [SERVICE_NAME]. You can redeem it anytime before [EXPIRY_DATE]. See you soon! Make sure to save and show this coupon code upon arrival. Reply STOP to opt out. Msg & data rates may apply."
 } as const;
 
 export type MessageTemplateKey = keyof typeof MESSAGE_TEMPLATES;

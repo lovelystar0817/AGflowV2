@@ -1,6 +1,6 @@
 import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
-import { getTwilioService } from "./twilio-service";
+import { getSendchampService } from "./sendchamp-service";
 import { eq, and, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -448,7 +448,7 @@ export class DatabaseStorage implements IStorage {
 
   private async processSMSDelivery(delivery: CouponDelivery): Promise<void> {
     try {
-      const twilioService = getTwilioService();
+      const sendchampService = getSendchampService();
       
       // Get the coupon details for the message
       const [couponResult] = await db.select().from(coupons).where(eq(coupons.id, delivery.couponId));
@@ -504,7 +504,7 @@ export class DatabaseStorage implements IStorage {
         
         const batchPromises = batch.map(async (client) => {
           try {
-            const smsResult = await twilioService.sendSMS(client.phone!, delivery.message);
+            const smsResult = await sendchampService.sendSMS(client.phone!, delivery.message);
             
             if (smsResult.success) {
               sentCount++;
