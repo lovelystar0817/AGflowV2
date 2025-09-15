@@ -157,7 +157,27 @@ export default function PublicBookingPage() {
     const allSlots = generate30MinuteSlots(availability.timeRanges || []);
     const bookedSlots = availability.bookedSlots || [];
     
-    return filterAvailableSlots(allSlots, bookedSlots);
+    let availableSlots = filterAvailableSlots(allSlots, bookedSlots);
+    
+    // Only filter past times if date is today (use local time)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset to start of day for comparison
+    const selectedDateCopy = selectedDate ? new Date(selectedDate) : null;
+    if (selectedDateCopy) {
+      selectedDateCopy.setHours(0, 0, 0, 0); // Reset to start of day for comparison
+    }
+    
+    if (selectedDate && selectedDateCopy && selectedDateCopy.getTime() === today.getTime()) {
+      const now = new Date();
+      availableSlots = availableSlots.filter(slot => {
+        const [hours, minutes] = slot.split(':').map(Number);
+        const slotDateTime = new Date();
+        slotDateTime.setHours(hours, minutes, 0, 0);
+        return slotDateTime > now;
+      });
+    }
+    
+    return availableSlots;
   };
 
   // Convert 24-hour format to 12-hour format for display consistency
