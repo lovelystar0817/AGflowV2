@@ -334,6 +334,7 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
   recipientType: text("recipient_type").notNull(), // 'all' | 'custom' | 'logic'
   clientIds: jsonb("client_ids").$type<string[]>().default(sql`'[]'::jsonb`), // Array of client IDs for custom targeting
   logicRule: text("logic_rule"), // 'first_time' | 'after_2_visits' for logic-based targeting
+  message: text("message").notNull(), // SMS message content for delivery
   scheduledAt: timestamp("scheduled_at").defaultNow(),  // Default to now for "send now" functionality
   sentAt: timestamp("sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -345,6 +346,8 @@ export const couponDeliveryFormSchema = z.object({
   recipientType: z.enum(["all", "custom", "logic"], { required_error: "Recipient type is required" }),
   clientIds: z.array(z.string().uuid()).optional(),
   logicRule: z.enum(["first_time", "after_2_visits"]).optional(),
+  messageTemplate: z.enum(["new_client", "general_promo", "loyalty_reward"]).optional(),
+  message: z.string().min(1, "Message is required").max(1600, "Message too long for SMS (limit: 1600 characters)"),
   scheduledAt: z.string().datetime("Invalid datetime format").optional(), // Optional for "send now"
 }).refine((data) => {
   // Ensure clientIds is provided when recipientType is 'custom'
@@ -464,6 +467,43 @@ export function getSlotEndTime(startTime: string, durationHours: number = 1): st
   const hours = Math.floor(endMinutes / 60);
   const mins = endMinutes % 60;
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+// Message templates for coupon delivery
+export const MESSAGE_TEMPLATES = {
+  new_client: "Hi there! I'm excited to welcome you as a new client. Here's a special [DISCOUNT]% off your first visit. Use it before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
+  general_promo: "Hey! I'm running a limited-time offer: [DISCOUNT]% off [SERVICE_NAME]. Book before [EXPIRY_DATE]. Make sure to save and show this coupon code upon arrival.",
+  loyalty_reward: "Thanks for being a loyal client! You've earned [DISCOUNT]% off your next [SERVICE_NAME]. You can redeem it anytime before [EXPIRY_DATE]. See you soon! and make sure to save and show this coupon code upon arrival."
+} as const;
+
+export type MessageTemplateKey = keyof typeof MESSAGE_TEMPLATES;
+
+export const MESSAGE_TEMPLATE_LABELS = {
+  new_client: "New Client Promo",
+  general_promo: "General Promo for All Clients", 
+  loyalty_reward: "Loyalty Reward (After 2+ Visits)"
+} as const;
+
+// Helper function to replace placeholders in message templates
+export function replaceMessagePlaceholders(
+  template: string,
+  coupon: Coupon,
+  service?: { serviceName: string }
+): string {
+  // Format the end date for display
+  const endDate = new Date(coupon.endDate).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long', 
+    day: 'numeric'
+  });
+
+  const serviceName = service ? service.serviceName : "All Services";
+  const discount = coupon.type === "percent" ? Math.round(parseFloat(coupon.amount)) : `$${coupon.amount}`;
+
+  return template
+    .replace(/\[DISCOUNT\]/g, discount.toString())
+    .replace(/\[SERVICE_NAME\]/g, serviceName)
+    .replace(/\[EXPIRY_DATE\]/g, endDate);
 }
 
 // Legacy exports for compatibility with auth blueprint
