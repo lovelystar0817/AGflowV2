@@ -3,6 +3,9 @@ import { pgTable, text, timestamp, uuid, varchar, json, jsonb, integer, serial, 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Enum for business types
+export const businessTypeEnum = pgEnum("business_type", ["Hairstylist", "Barber", "Nail Technician"]);
+
 // Session table for authentication
 export const sessions = pgTable("session", {
   sid: varchar("sid").primaryKey(),
@@ -28,6 +31,12 @@ export const stylists = pgTable("stylists", {
   yearsOfExperience: integer("years_of_experience"),
   instagramHandle: text("instagram_handle"),
   bookingLink: text("booking_link"),
+  // Business Settings fields
+  businessType: businessTypeEnum("business_type").default("Hairstylist"),
+  smsSenderName: text("sms_sender_name"),
+  defaultAppointmentDuration: integer("default_appointment_duration").default(30),
+  preferredSlotFormat: integer("preferred_slot_format").default(30),
+  showPublicly: boolean("show_publicly").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

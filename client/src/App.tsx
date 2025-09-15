@@ -14,6 +14,7 @@ import CouponCreatePage from "@/pages/coupon-create-page";
 import CouponSendPage from "@/pages/coupon-send-page";
 import PublicBookingPage from "@/pages/public-booking-page";
 import TodayAppointmentsPage from "@/pages/today-appointments-page";
+import BusinessSettingsPage from "@/pages/business-settings-page";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <ProtectedRoute path="/dashboard/today-appointments" component={TodayAppointmentsPage} />
       <ProtectedRoute path="/coupons/create" component={CouponCreatePage} />
       <ProtectedRoute path="/coupons/:id/send" component={CouponSendPage} />
+      <ProtectedRoute path="/settings/business" component={BusinessSettingsPage} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/book/:stylistId" component={PublicBookingPage} />
       <Route component={NotFound} />

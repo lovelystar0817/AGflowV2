@@ -13,6 +13,7 @@ export interface IStorage {
   getStylistByEmail(email: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
   updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist>;
+  updateBusinessSettings(id: string, settings: any): Promise<Stylist>;
   
   // Service management
   getStylistServices(stylistId: string): Promise<StylistService[]>;
@@ -128,6 +129,25 @@ export class DatabaseStorage implements IStorage {
         bookingLink: profile.bookingLink,
         // Populate legacy field for backward compatibility with isProfileComplete
         servicesOffered: profile.services ? serviceNames : undefined,
+      })
+      .where(eq(stylists.id, id))
+      .returning();
+    
+    return stylist;
+  }
+
+  async updateBusinessSettings(id: string, settings: any): Promise<Stylist> {
+    const [stylist] = await db
+      .update(stylists)
+      .set({
+        businessName: settings.businessName,
+        businessType: settings.businessType,
+        bio: settings.bio,
+        location: settings.location,
+        smsSenderName: settings.smsSenderName,
+        defaultAppointmentDuration: settings.defaultAppointmentDuration,
+        preferredSlotFormat: settings.preferredSlotFormat,
+        showPublicly: settings.showPublicly,
       })
       .where(eq(stylists.id, id))
       .returning();
