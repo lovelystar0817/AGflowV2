@@ -73,7 +73,12 @@ export default function PublicBookingPage() {
 
   // Fetch availability for selected date
   const { data: availability, isLoading: availabilityLoading } = useQuery({
-    queryKey: ["/api/public/availability", stylistId, selectedDate?.toISOString()],
+    queryKey: ["/api/public/availability", stylistId, selectedDate ? (() => {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    })() : null],
     queryFn: async () => {
       if (!selectedDate) return null;
       // Use local date formatting to avoid timezone issues
@@ -373,6 +378,8 @@ export default function PublicBookingPage() {
                         onSelect={(date) => {
                           field.onChange(date);
                           setSelectedDate(date);
+                          // Reset time selection when date changes
+                          form.setValue("startTime", "");
                         }}
                         disabled={(date) => {
                           const today = new Date();
@@ -383,62 +390,69 @@ export default function PublicBookingPage() {
                         className="rounded-md border"
                       />
                       <FormMessage />
+
+                      {/* Time Selection - Inline with Calendar */}
+                      {selectedDate && (
+                        <div className="mt-6 pt-6 border-t border-border">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Clock className="h-5 w-5" />
+                            <h3 className="text-lg font-medium">Available Times</h3>
+                          </div>
+                          
+                          <FormField
+                            control={form.control}
+                            name="startTime"
+                            render={({ field }) => (
+                              <FormItem>
+                                {availabilityLoading ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                    <span className="ml-2 text-muted-foreground">Loading available times...</span>
+                                  </div>
+                                ) : getAvailableSlots().length === 0 ? (
+                                  <div className="text-center py-8">
+                                    <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                                    <p className="text-muted-foreground">No available times for this date</p>
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                    {getAvailableSlots().map((slot) => (
+                                      <Button
+                                        key={slot}
+                                        type="button"
+                                        variant={field.value === slot ? "default" : "outline"}
+                                        className="h-10 text-sm"
+                                        onClick={() => field.onChange(slot)}
+                                        data-testid={`time-slot-${slot.replace(':', '-')}`}
+                                      >
+                                        {slot}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                )}
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
                     </FormItem>
                   )}
                 />
               </CardContent>
             </Card>
 
-            {/* Time Selection */}
-            {selectedDate && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    Select Time
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <FormField
-                    control={form.control}
-                    name="startTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Time</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-time">
-                              <SelectValue placeholder="Choose a time" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {availabilityLoading ? (
-                              <SelectItem value="loading" disabled>Loading times...</SelectItem>
-                            ) : getAvailableSlots().length === 0 ? (
-                              <SelectItem value="no-slots" disabled>No available times</SelectItem>
-                            ) : (
-                              getAvailableSlots().map((slot) => (
-                                <SelectItem key={slot} value={slot}>
-                                  {slot}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
             {/* Book Button */}
             <Button
               type="submit"
               size="lg"
               className="w-full"
-              disabled={bookingMutation.isPending || !selectedDate || !form.watch("startTime")}
+              disabled={
+                bookingMutation.isPending || 
+                !selectedDate || 
+                !form.watch("startTime") ||
+                !getAvailableSlots().includes(form.watch("startTime"))
+              }
               data-testid="button-book"
             >
               {bookingMutation.isPending ? "Booking..." : "Book Appointment"}
