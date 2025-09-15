@@ -805,7 +805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/public/book/:stylistId", async (req, res) => {
     try {
       const { stylistId } = req.params;
-      const { firstName, lastName, phone, email, serviceId, date, startTime } = req.body;
+      const { firstName, lastName, phone, email, serviceId, date, startTime, optInMarketing } = req.body;
 
       // Validate required fields
       if (!firstName || !lastName || !phone || !serviceId || !date || !startTime) {
@@ -835,9 +835,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingClient) {
         client = existingClient;
         
-        // Update client with any new email information
+        // Update client with any new email information or opt-in preference
+        const updateData: any = {};
         if (email && email !== existingClient.email) {
-          const updatedClient = await storage.updateClient(existingClient.id, { email });
+          updateData.email = email;
+        }
+        if (typeof optInMarketing === 'boolean' && optInMarketing !== existingClient.optInMarketing) {
+          updateData.optInMarketing = optInMarketing;
+        }
+        
+        if (Object.keys(updateData).length > 0) {
+          const updatedClient = await storage.updateClient(existingClient.id, updateData);
           client = updatedClient;
         }
       } else {
@@ -848,6 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName,
           phone,
           email: email || null,
+          optInMarketing: optInMarketing || false,
           notes: "Created via public booking"
         });
         client = newClient;
