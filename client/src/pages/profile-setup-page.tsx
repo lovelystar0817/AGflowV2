@@ -60,7 +60,7 @@ export default function ProfileSetupPage() {
   const [customServicePrice, setCustomServicePrice] = useState("");
   
   // State for services tabs
-  const [activeServicesTab, setActiveServicesTab] = useState("common");
+  const [activeServicesTab, setActiveServicesTab] = useState("hairstylist");
 
   // Fetch existing services
   const { data: existingServices, isLoading: servicesLoading } = useQuery<StylistService[]>({
@@ -385,16 +385,16 @@ export default function ProfileSetupPage() {
                   <h4 className="text-sm font-medium mb-4">Services by Category</h4>
                   <Tabs value={activeServicesTab} onValueChange={setActiveServicesTab}>
                     <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="common">Common</TabsTrigger>
                       <TabsTrigger value="hairstylist">Hairstylist</TabsTrigger>
                       <TabsTrigger value="barber">Barber</TabsTrigger>
                       <TabsTrigger value="nail-tech">Nail Tech</TabsTrigger>
+                      <TabsTrigger value="other">Other</TabsTrigger>
                     </TabsList>
                     
-                    {/* Common Services Tab */}
-                    <TabsContent value="common" className="mt-4">
+                    {/* Hairstylist Services Tab */}
+                    <TabsContent value="hairstylist" className="mt-4">
                       <div className="space-y-4">
-                        {COMMON_SERVICES.map((service) => (
+                        {[...COMMON_SERVICES, ...DEFAULT_SERVICES_BY_TYPE.Hairstylist].map((service) => (
                           <div key={service} className="flex items-center space-x-4">
                             <Checkbox
                               id={service}
@@ -404,43 +404,6 @@ export default function ProfileSetupPage() {
                             />
                             <label
                               htmlFor={service}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
-                            >
-                              {service}
-                            </label>
-                            {isPresetServiceSelected(service) && (
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm">$</span>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="0.00"
-                                  value={getPresetServicePrice(service)}
-                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
-                                  className="w-24"
-                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </TabsContent>
-                    
-                    {/* Hairstylist Services Tab */}
-                    <TabsContent value="hairstylist" className="mt-4">
-                      <div className="space-y-4">
-                        {DEFAULT_SERVICES_BY_TYPE.Hairstylist.map((service) => (
-                          <div key={service} className="flex items-center space-x-4">
-                            <Checkbox
-                              id={`hairstylist-${service}`}
-                              checked={isPresetServiceSelected(service)}
-                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
-                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                            />
-                            <label
-                              htmlFor={`hairstylist-${service}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
                             >
                               {service}
@@ -515,6 +478,46 @@ export default function ProfileSetupPage() {
                             />
                             <label
                               htmlFor={`nail-tech-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    {/* Other Services Tab */}
+                    <TabsContent value="other" className="mt-4">
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground mb-4">
+                          General services that apply across different business types
+                        </p>
+                        {["Consultation", "Touch-up", "Package Deal", "Group Service"].map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={`other-${service}`}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                            <label
+                              htmlFor={`other-${service}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
                             >
                               {service}
