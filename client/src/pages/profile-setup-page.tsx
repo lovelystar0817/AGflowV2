@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ArrowLeft, Check, Plus, X } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -27,10 +28,20 @@ const DAYS_OF_WEEK = [
   { key: "sunday", label: "Sunday" },
 ];
 
-// Get default services based on user's business type
-const getDefaultServices = (businessType: string = "Hairstylist") => {
-  return DEFAULT_SERVICES_BY_TYPE[businessType as keyof typeof DEFAULT_SERVICES_BY_TYPE] || DEFAULT_SERVICES_BY_TYPE.Hairstylist;
-};
+const COMMON_SERVICES = [
+  "Haircut & Styling",
+  "Hair Coloring",
+  "Highlights & Lowlights", 
+  "Balayage",
+  "Hair Extensions",
+  "Blowout & Styling",
+  "Special Occasion Hair",
+  "Bridal Hair",
+  "Keratin Treatment",
+  "Hair Washing & Conditioning",
+  "Beard Trimming",
+  "Eyebrow Shaping",
+];
 
 const EXPERIENCE_OPTIONS = Array.from({ length: 51 }, (_, i) => ({
   value: i,
@@ -43,12 +54,13 @@ export default function ProfileSetupPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   
-  // Get appropriate default services based on user's business type
-  const defaultServices = getDefaultServices(user?.businessType || "Hairstylist");
 
   // State for custom service creation
   const [customServiceName, setCustomServiceName] = useState("");
   const [customServicePrice, setCustomServicePrice] = useState("");
+  
+  // State for services tabs
+  const [activeServicesTab, setActiveServicesTab] = useState("common");
 
   // Fetch existing services
   const { data: existingServices, isLoading: servicesLoading } = useQuery<StylistService[]>({
@@ -368,44 +380,165 @@ export default function ProfileSetupPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Preset Services */}
+                {/* Preset Services with Tabs */}
                 <div>
-                  <h4 className="text-sm font-medium mb-4">
-                    Default Services for {user?.businessType || "Hairstylist"}
-                  </h4>
-                  <div className="space-y-4">
-                    {defaultServices.map((service) => (
-                      <div key={service} className="flex items-center space-x-4">
-                        <Checkbox
-                          id={service}
-                          checked={isPresetServiceSelected(service)}
-                          onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
-                          data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                        />
-                        <label
-                          htmlFor={service}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
-                        >
-                          {service}
-                        </label>
-                        {isPresetServiceSelected(service) && (
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm">$</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={getPresetServicePrice(service)}
-                              onChange={(e) => updatePresetServicePrice(service, e.target.value)}
-                              className="w-24"
-                              data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                  <h4 className="text-sm font-medium mb-4">Services by Category</h4>
+                  <Tabs value={activeServicesTab} onValueChange={setActiveServicesTab}>
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="common">Common</TabsTrigger>
+                      <TabsTrigger value="hairstylist">Hairstylist</TabsTrigger>
+                      <TabsTrigger value="barber">Barber</TabsTrigger>
+                      <TabsTrigger value="nail-tech">Nail Tech</TabsTrigger>
+                    </TabsList>
+                    
+                    {/* Common Services Tab */}
+                    <TabsContent value="common" className="mt-4">
+                      <div className="space-y-4">
+                        {COMMON_SERVICES.map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={service}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                             />
+                            <label
+                              htmlFor={service}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </TabsContent>
+                    
+                    {/* Hairstylist Services Tab */}
+                    <TabsContent value="hairstylist" className="mt-4">
+                      <div className="space-y-4">
+                        {DEFAULT_SERVICES_BY_TYPE.Hairstylist.map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={`hairstylist-${service}`}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                            <label
+                              htmlFor={`hairstylist-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    {/* Barber Services Tab */}
+                    <TabsContent value="barber" className="mt-4">
+                      <div className="space-y-4">
+                        {DEFAULT_SERVICES_BY_TYPE.Barber.map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={`barber-${service}`}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                            <label
+                              htmlFor={`barber-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    {/* Nail Technician Services Tab */}
+                    <TabsContent value="nail-tech" className="mt-4">
+                      <div className="space-y-4">
+                        {DEFAULT_SERVICES_BY_TYPE["Nail Technician"].map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={`nail-tech-${service}`}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                            <label
+                              htmlFor={`nail-tech-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </div>
 
                 {/* Custom Service Creator */}
