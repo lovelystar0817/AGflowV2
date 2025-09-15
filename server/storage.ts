@@ -35,6 +35,7 @@ export interface IStorage {
   
   // Appointment management
   getAppointmentsByStylist(stylistId: string, date?: string): Promise<Appointment[]>;
+  getAppointmentsWithDetails(stylistId: string, date?: string): Promise<any[]>;
   getAppointment(id: string): Promise<Appointment | undefined>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment>;
@@ -263,6 +264,52 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(appointments)
       .where(eq(appointments.stylistId, stylistId));
+  }
+
+  async getAppointmentsWithDetails(stylistId: string, date?: string): Promise<any[]> {
+    const baseQuery = db
+      .select({
+        id: appointments.id,
+        stylistId: appointments.stylistId,
+        clientId: appointments.clientId,
+        serviceId: appointments.serviceId,
+        date: appointments.date,
+        startTime: appointments.startTime,
+        endTime: appointments.endTime,
+        status: appointments.status,
+        notes: appointments.notes,
+        totalPrice: appointments.totalPrice,
+        createdAt: appointments.createdAt,
+        updatedAt: appointments.updatedAt,
+        client: {
+          id: clients.id,
+          firstName: clients.firstName,
+          lastName: clients.lastName,
+          email: clients.email,
+          phone: clients.phone,
+        },
+        service: {
+          id: stylistServices.id,
+          serviceName: stylistServices.serviceName,
+          price: stylistServices.price,
+        },
+      })
+      .from(appointments)
+      .innerJoin(clients, eq(appointments.clientId, clients.id))
+      .innerJoin(stylistServices, eq(appointments.serviceId, stylistServices.id));
+
+    const result = date 
+      ? await baseQuery.where(and(eq(appointments.stylistId, stylistId), eq(appointments.date, date))).orderBy(appointments.startTime)
+      : await baseQuery.where(eq(appointments.stylistId, stylistId)).orderBy(appointments.startTime);
+
+    // Transform the result to include full name
+    return result.map(row => ({
+      ...row,
+      client: {
+        ...row.client,
+        name: `${row.client.firstName} ${row.client.lastName}`.trim(),
+      },
+    }));
   }
 
   async getAppointment(id: string): Promise<Appointment | undefined> {

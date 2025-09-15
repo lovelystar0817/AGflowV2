@@ -427,6 +427,11 @@ export default function DashboardPage() {
     setLocation(`/dashboard/calendar/${dateStr}`);
   };
 
+  // Navigate to Today's Appointments page
+  const handleNavigateToTodayAppointments = () => {
+    setLocation("/dashboard/today-appointments");
+  };
+
   const [, setLocation] = useLocation();
 
   const handleDateClick = (date: Date) => {
@@ -446,8 +451,10 @@ export default function DashboardPage() {
       icon: CalendarCheck,
       bgColor: "bg-primary/10",
       iconColor: "text-primary",
-      tooltip: "Number of appointments scheduled for today",
-      isLoading: todaysAppointmentsLoading
+      tooltip: "Number of appointments scheduled for today. Click to view details.",
+      isLoading: todaysAppointmentsLoading,
+      isClickable: true,
+      onClick: handleNavigateToTodayAppointments
     },
     {
       title: "Open Time Slots Today",
