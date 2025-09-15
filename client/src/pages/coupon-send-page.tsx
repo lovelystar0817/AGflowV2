@@ -67,6 +67,7 @@ export default function CouponSendPage() {
       clientIds: [],
       messageTemplate: "general_promo",
       message: "",
+      subject: "",
     },
   });
 
@@ -78,10 +79,15 @@ export default function CouponSendPage() {
         clientIds: data.clientIds || [],
         logicRule: data.logicRule,
         message: data.message,
+        subject: data.subject,
         // Send now by default (scheduledAt will be set to current time on backend)
       };
 
       const response = await apiRequest("POST", "/api/coupon-deliveries", deliveryData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
       return response.json();
     },
     onSuccess: () => {
