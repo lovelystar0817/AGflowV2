@@ -178,6 +178,7 @@ export const clients = pgTable("clients", {
   email: text("email"),
   phone: text("phone"),
   notes: text("notes"),
+  optInMarketing: boolean("opt_in_marketing").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -191,6 +192,8 @@ export const insertClientSchema = createInsertSchema(clients).omit({
   phone: phoneValidationSchema.optional(),
   // Enhanced email validation
   email: z.string().email("Invalid email format").optional(),
+  // Marketing opt-in preference
+  optInMarketing: z.boolean().default(false),
 });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;

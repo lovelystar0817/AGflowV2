@@ -22,6 +22,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarDays, Clock, User, Phone, Scissors, CheckCircle } from "lucide-react";
 import { z } from "zod";
 
@@ -34,6 +35,7 @@ const bookingFormSchema = z.object({
   serviceId: z.number().min(1, "Please select a service"),
   date: z.date({ required_error: "Please select a date" }),
   startTime: z.string().min(1, "Please select a time"),
+  optInMarketing: z.boolean().default(false),
 });
 
 type BookingFormData = z.infer<typeof bookingFormSchema>;
@@ -102,6 +104,7 @@ export default function PublicBookingPage() {
       email: "",
       serviceId: 0,
       startTime: "",
+      optInMarketing: false,
     },
   });
 
@@ -121,6 +124,7 @@ export default function PublicBookingPage() {
           return `${year}-${month}-${day}`;
         })(),
         startTime: data.startTime,
+        optInMarketing: data.optInMarketing,
       });
       return response.json();
     },
@@ -315,6 +319,26 @@ export default function PublicBookingPage() {
                         <Input placeholder="Enter your email" {...field} data-testid="input-email" />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="optInMarketing"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="checkbox-opt-in-marketing"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-sm font-normal cursor-pointer">
+                          By checking this box, you agree to receive appointment reminders and promotional offers. Your data is never shared, and you can opt out at any time.
+                        </FormLabel>
+                      </div>
                     </FormItem>
                   )}
                 />
