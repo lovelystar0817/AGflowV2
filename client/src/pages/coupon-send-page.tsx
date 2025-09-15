@@ -2,7 +2,16 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
-import { couponDeliveryFormSchema, type Coupon, type Client, type StylistService } from "@shared/schema";
+import { 
+  couponDeliveryFormSchema,
+  MESSAGE_TEMPLATES,
+  MESSAGE_TEMPLATE_LABELS,
+  replaceMessagePlaceholders,
+  type Coupon,
+  type Client,
+  type StylistService,
+  type MessageTemplateKey,
+} from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -11,7 +20,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Send, Users, User, Brain, Calendar, CheckCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Send, Users, User, Brain, Calendar, CheckCircle, MessageSquare } from "lucide-react";
 import { z } from "zod";
 
 type CouponDeliveryFormData = z.infer<typeof couponDeliveryFormSchema>;
@@ -49,6 +59,8 @@ export default function CouponSendPage() {
       couponId: couponId || "",
       recipientType: "all",
       clientIds: [],
+      messageTemplate: "general_promo",
+      message: "",
     },
   });
 
@@ -59,6 +71,7 @@ export default function CouponSendPage() {
         recipientType: data.recipientType,
         clientIds: data.clientIds || [],
         logicRule: data.logicRule,
+        message: data.message,
         // Send now by default (scheduledAt will be set to current time on backend)
       };
 
@@ -88,6 +101,8 @@ export default function CouponSendPage() {
 
   const watchRecipientType = form.watch("recipientType");
   const watchClientIds = form.watch("clientIds");
+  const watchMessageTemplate = form.watch("messageTemplate");
+  const watchMessage = form.watch("message");
 
   // Get target service name for display
   const getTargetServiceName = () => {
@@ -111,6 +126,21 @@ export default function CouponSendPage() {
       default:
         return 0;
     }
+  };
+
+  // Handle template selection and auto-populate message
+  const handleTemplateChange = (templateKey: MessageTemplateKey) => {
+    if (!coupon) return;
+
+    const template = MESSAGE_TEMPLATES[templateKey];
+    const service = coupon.serviceId && services 
+      ? services.find(s => s.id === coupon.serviceId)
+      : undefined;
+    
+    const populatedMessage = replaceMessagePlaceholders(template, coupon, service);
+    
+    form.setValue("messageTemplate", templateKey);
+    form.setValue("message", populatedMessage);
   };
 
   if (couponLoading) {
@@ -364,6 +394,75 @@ export default function CouponSendPage() {
                         )}
                       />
                     )}
+
+                    {/* Message Template Selector */}
+                    <Card className="border-2 border-dashed border-muted">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="h-5 w-5" />
+                          Message Template
+                        </CardTitle>
+                        <CardDescription>
+                          Choose a pre-written message template and customize it
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="messageTemplate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Select Template</FormLabel>
+                              <Select onValueChange={(value) => handleTemplateChange(value as MessageTemplateKey)} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-message-template">
+                                    <SelectValue placeholder="Choose a message template" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {Object.entries(MESSAGE_TEMPLATE_LABELS).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>
+                                      {label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Message Preview/Editor */}
+                        <FormField
+                          control={form.control}
+                          name="message"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Message Preview & Editor</FormLabel>
+                                <div className="text-sm text-muted-foreground">
+                                  {watchMessage ? watchMessage.length : 0}/1600 characters
+                                </div>
+                              </div>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Your message will appear here when you select a template..."
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                  rows={6}
+                                  className="resize-none"
+                                  data-testid="textarea-message"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Customize the message as needed. Perfect for SMS delivery (max 1600 chars).
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </CardContent>
+                    </Card>
                   </CardContent>
                 </Card>
 
