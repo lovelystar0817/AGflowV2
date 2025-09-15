@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
+import QRCodeSection from "@/components/qr-code-section";
 import { isProfileComplete, serviceFormSchema, type StylistService, type Client, type Coupon } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -73,6 +74,7 @@ import {
   ChevronDown, 
   User,
   Settings,
+  QrCode,
   LogOut,
   Scissors,
   CalendarCheck,
@@ -703,6 +705,14 @@ export default function DashboardPage() {
                   <Star className="h-4 w-4" />
                   <span>Reviews</span>
                 </TabsTrigger>
+                <TabsTrigger 
+                  value="qr-code" 
+                  className="flex items-center space-x-2 py-4 px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  data-testid="tab-qr-code"
+                >
+                  <QrCode className="h-4 w-4" />
+                  <span>QR Code</span>
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -1050,6 +1060,11 @@ export default function DashboardPage() {
                     <p className="text-muted-foreground">Collect and manage customer reviews to build your reputation and improve services.</p>
                   </div>
                 </div>
+              </TabsContent>
+
+              {/* QR Code Tab */}
+              <TabsContent value="qr-code" className="mt-0">
+                <QRCodeSection user={user} />
               </TabsContent>
             </div>
           </Tabs>
