@@ -353,6 +353,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Business settings routes
+  app.put("/api/business-settings", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const businessSettingsSchema = z.object({
+        businessName: z.string().min(1, "Business name is required").optional(),
+        businessType: z.enum(["Hairstylist", "Barber", "Nail Technician"]).optional(),
+        bio: z.string().optional(),
+        location: z.string().optional(),
+        smsSenderName: z.string().min(1, "SMS sender name is required").max(11, "SMS sender name must be 11 characters or less").optional(),
+        defaultAppointmentDuration: z.number().int().min(15).max(180).optional(),
+        preferredSlotFormat: z.number().int().min(15).max(120).optional(),
+        showPublicly: z.boolean().optional(),
+      });
+      
+      const validation = businessSettingsSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid business settings data", details: validation.error.errors });
+      }
+      
+      const updatedStylist = await storage.updateBusinessSettings(req.user.id, validation.data);
+      
+      // Remove passwordHash from response for security
+      const { passwordHash, ...stylistResponse } = updatedStylist;
+      
+      res.json(stylistResponse);
+    } catch (error) {
+      console.error("Error updating business settings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/services/replace", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const replaceServicesSchema = z.object({
+        services: z.array(z.string()).min(1, "At least one service is required"),
+      });
+      
+      const validation = replaceServicesSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid services data", details: validation.error.errors });
+      }
+      
+      // Replace services using existing storage method
+      const newServices = validation.data.services.map(serviceName => ({
+        serviceName,
+        price: "50.00", // Default price
+        isCustom: false,
+      }));
+      
+      const createdServices = await storage.replaceStylistServices(req.user.id, newServices);
+      
+      res.json({ 
+        message: "Services replaced successfully",
+        services: createdServices 
+      });
+    } catch (error) {
+      console.error("Error replacing services:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Appointment booking routes
   app.get("/api/appointments", async (req, res) => {
     try {

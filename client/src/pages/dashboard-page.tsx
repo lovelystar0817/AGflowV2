@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -575,13 +575,11 @@ export default function DashboardPage() {
                 </DropdownMenuTrigger>
                 
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem data-testid="menu-profile">
-                    <User className="mr-2 h-4 w-4" />
-                    Profile Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem data-testid="menu-business-settings">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Business Settings
+                  <DropdownMenuItem asChild data-testid="menu-business-settings">
+                    <Link href="/settings/business">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Business Settings
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
