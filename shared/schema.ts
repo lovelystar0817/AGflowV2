@@ -335,6 +335,11 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
   clientIds: jsonb("client_ids").$type<string[]>().default(sql`'[]'::jsonb`), // Array of client IDs for custom targeting
   logicRule: text("logic_rule"), // 'first_time' | 'after_2_visits' for logic-based targeting
   message: text("message").notNull(), // SMS message content for delivery
+  // SMS tracking fields
+  smsStatus: text("sms_status").default("pending"), // 'pending' | 'queued' | 'sent' | 'delivered' | 'failed'
+  smsSid: text("sms_sid"), // Twilio message SID for tracking
+  smsError: text("sms_error"), // Error message if SMS delivery failed
+  deliveredAt: timestamp("delivered_at"), // When SMS was successfully delivered
   scheduledAt: timestamp("scheduled_at").defaultNow(),  // Default to now for "send now" functionality
   sentAt: timestamp("sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
