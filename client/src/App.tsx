@@ -13,6 +13,7 @@ import DailyAvailabilityPage from "@/pages/daily-availability-page";
 import CouponCreatePage from "@/pages/coupon-create-page";
 import CouponSendPage from "@/pages/coupon-send-page";
 import PublicBookingPage from "@/pages/public-booking-page";
+import TodayAppointmentsPage from "@/pages/today-appointments-page";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <ProtectedRoute path="/" component={DashboardPage} />
       <ProtectedRoute path="/profile-setup" component={ProfileSetupPage} />
       <ProtectedRoute path="/dashboard/calendar/:date" component={DailyAvailabilityPage} />
+      <ProtectedRoute path="/dashboard/today-appointments" component={TodayAppointmentsPage} />
       <ProtectedRoute path="/coupons/create" component={CouponCreatePage} />
       <ProtectedRoute path="/coupons/:id/send" component={CouponSendPage} />
       <Route path="/auth" component={AuthPage} />
