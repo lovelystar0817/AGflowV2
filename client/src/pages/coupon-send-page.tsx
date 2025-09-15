@@ -264,7 +264,7 @@ export default function CouponSendPage() {
                               <SelectItem value="logic">
                                 <div className="flex items-center space-x-2">
                                   <Brain className="h-4 w-4" />
-                                  <span>AI-Ready Logic Based</span>
+                                  <span>Scheduled</span>
                                 </div>
                               </SelectItem>
                             </SelectContent>
