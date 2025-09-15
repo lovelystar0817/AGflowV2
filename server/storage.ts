@@ -573,6 +573,7 @@ export class DatabaseStorage implements IStorage {
           try {
             const emailResult = await resendEmailService.sendCouponEmail(
               client.email!,
+              delivery.subject, // Use subject from delivery form
               coupon.name, // Use coupon name as code
               delivery.message,
               new Date(coupon.endDate),

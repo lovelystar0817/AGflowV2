@@ -95,6 +95,7 @@ class ResendEmailService {
   /**
    * Sends a coupon email with formatted HTML template
    * @param toEmail - Recipient email address
+   * @param subject - Email subject line
    * @param couponCode - Coupon code
    * @param couponDescription - Description of the coupon
    * @param expiryDate - Coupon expiry date
@@ -103,12 +104,12 @@ class ResendEmailService {
    */
   async sendCouponEmail(
     toEmail: string,
+    subject: string,
     couponCode: string,
     couponDescription: string,
     expiryDate: Date,
     businessName: string = 'Your Stylist'
   ): Promise<EmailResult> {
-    const subject = `🎉 Special Offer from ${businessName}`;
     
     const html = `
       <!DOCTYPE html>
