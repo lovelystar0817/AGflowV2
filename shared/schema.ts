@@ -87,6 +87,56 @@ export const serviceFormSchema = z.object({
 export type InsertStylistService = z.infer<typeof insertStylistServiceSchema>;
 export type StylistService = typeof stylistServices.$inferSelect;
 
+// Phone number validation utility
+export function validateAndNormalizePhone(phoneNumber: string): string | null {
+  if (!phoneNumber) return null;
+
+  // Remove all non-digit characters except +
+  let cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
+  
+  // If no + prefix, assume US number and add +1
+  if (!cleanNumber.startsWith('+')) {
+    // If it's 10 digits, assume US number
+    if (cleanNumber.length === 10) {
+      cleanNumber = '+1' + cleanNumber;
+    } 
+    // If it's 11 digits starting with 1, assume US number
+    else if (cleanNumber.length === 11 && cleanNumber.startsWith('1')) {
+      cleanNumber = '+' + cleanNumber;
+    }
+    // If it's another length, try adding +1
+    else if (cleanNumber.length > 6 && cleanNumber.length < 15) {
+      cleanNumber = '+1' + cleanNumber;
+    }
+    else {
+      return null; // Invalid length
+    }
+  }
+
+  // Validate E.164 format (+ followed by 1-15 digits)
+  const e164Regex = /^\+[1-9]\d{1,14}$/;
+  if (!e164Regex.test(cleanNumber)) {
+    return null;
+  }
+
+  return cleanNumber;
+}
+
+// Phone number validation schema
+export const phoneValidationSchema = z.string()
+  .min(1, "Phone number is required")
+  .transform((phone, ctx) => {
+    const normalized = validateAndNormalizePhone(phone);
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Please enter a valid phone number (e.g., +1234567890, 123-456-7890, or (123) 456-7890)",
+      });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
 // Business Hours validation schema
 const businessHoursSchema = z.record(z.object({
   open: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
@@ -96,7 +146,7 @@ const businessHoursSchema = z.record(z.object({
 
 // Profile update schema for existing stylists
 export const updateProfileSchema = z.object({
-  phone: z.string().min(1, "Phone number is required").regex(/^[\d\s\-\(\)\+]+$/, "Invalid phone number format"),
+  phone: phoneValidationSchema,
   location: z.string().min(1, "Location is required"),
   services: z.array(serviceFormSchema).min(1, "At least one service is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
@@ -136,6 +186,11 @@ export const insertClientSchema = createInsertSchema(clients).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // Enhanced phone validation with E.164 format support
+  phone: phoneValidationSchema.optional(),
+  // Enhanced email validation
+  email: z.string().email("Invalid email format").optional(),
 });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
