@@ -10,6 +10,7 @@ import AuthPage from "@/pages/auth-page";
 import DashboardPage from "@/pages/dashboard-page";
 import ProfileSetupPage from "@/pages/profile-setup-page";
 import DailyAvailabilityPage from "@/pages/daily-availability-page";
+import CouponCreatePage from "@/pages/coupon-create-page";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <ProtectedRoute path="/" component={DashboardPage} />
       <ProtectedRoute path="/profile-setup" component={ProfileSetupPage} />
       <ProtectedRoute path="/dashboard/calendar/:date" component={DailyAvailabilityPage} />
+      <ProtectedRoute path="/coupons/create" component={CouponCreatePage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
