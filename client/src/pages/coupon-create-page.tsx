@@ -236,8 +236,8 @@ export default function CouponCreatePage() {
                     <FormItem>
                       <FormLabel>Target Service (Optional)</FormLabel>
                       <Select 
-                        onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)} 
-                        value={field.value?.toString() || ""}
+                        onValueChange={(value) => field.onChange(value === "all" ? undefined : parseInt(value))} 
+                        value={field.value?.toString() || "all"}
                       >
                         <FormControl>
                           <SelectTrigger data-testid="select-service">
@@ -245,9 +245,9 @@ export default function CouponCreatePage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">All services (general coupon)</SelectItem>
+                          <SelectItem value="all">All services (general coupon)</SelectItem>
                           {servicesLoading ? (
-                            <SelectItem value="" disabled>Loading services...</SelectItem>
+                            <SelectItem value="loading" disabled>Loading services...</SelectItem>
                           ) : (
                             services?.map((service) => (
                               <SelectItem key={service.id} value={service.id.toString()}>
