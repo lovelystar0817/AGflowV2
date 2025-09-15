@@ -450,6 +450,7 @@ export const insertCouponDeliverySchema = createInsertSchema(couponDeliveries).o
   clientIds: true, // Handle separately for proper validation
 }).extend({
   clientIds: z.array(z.string().uuid()).default([]),
+  subject: z.string().min(1, "Subject is required").max(200, "Subject too long (limit: 200 characters)"),
 }).superRefine((data, ctx) => {
   // Ensure clientIds is provided when recipientType is 'custom'
   if (data.recipientType === "custom" && (!data.clientIds || data.clientIds.length === 0)) {
