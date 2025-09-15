@@ -269,7 +269,7 @@ export const appointments = pgTable("appointments", {
   date: date("date").notNull(),
   startTime: text("start_time").notNull(), // Format: "HH:MM" (24-hour)
   endTime: text("end_time").notNull(), // Format: "HH:MM" (24-hour)
-  status: text("status").notNull().default("confirmed"), // "confirmed", "cancelled", "completed"
+  status: text("status").notNull().default("scheduled"), // "scheduled", "completed", "cancelled", "no_show"
   notes: text("notes"),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -286,7 +286,7 @@ export const appointmentSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
   startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
   endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
-  status: z.enum(["confirmed", "cancelled", "completed"]).default("confirmed"),
+  status: z.enum(["scheduled", "completed", "cancelled", "no_show"]).default("scheduled"),
   notes: z.string().optional(),
   totalPrice: z.string().refine((val) => {
     const num = parseFloat(val);
