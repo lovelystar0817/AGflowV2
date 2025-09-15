@@ -36,7 +36,7 @@ export default function TodayAppointmentsPage() {
 
   // Query to get today's appointments with client and service details
   const { data: appointments = [], isLoading } = useQuery<AppointmentWithDetails[]>({
-    queryKey: ['/api/appointments/details', today],
+    queryKey: [`/api/appointments/details?date=${today}`],
   });
 
   const handleBackToDashboard = () => {
