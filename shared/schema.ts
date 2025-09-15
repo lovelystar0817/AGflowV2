@@ -6,6 +6,13 @@ import { z } from "zod";
 // Enum for business types
 export const businessTypeEnum = pgEnum("business_type", ["Hairstylist", "Barber", "Nail Technician"]);
 
+// Default services by business type - shared between profile setup and business settings
+export const DEFAULT_SERVICES_BY_TYPE = {
+  Hairstylist: ["Women's Cut", "Blowout", "Color & Highlights", "Silk Press", "Deep Conditioning"],
+  Barber: ["Men's Haircut", "Beard Trim", "Fade / Taper", "Line Up", "Hot Towel Shave"],
+  "Nail Technician": ["Gel Manicure", "Acrylic Full Set", "Nail Art Design", "Dip Powder Nails", "Pedicure"],
+} as const;
+
 // Session table for authentication
 export const sessions = pgTable("session", {
   sid: varchar("sid").primaryKey(),

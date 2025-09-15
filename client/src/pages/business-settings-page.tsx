@@ -43,6 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ArrowLeft, Settings, Copy, Check } from "lucide-react";
+import { DEFAULT_SERVICES_BY_TYPE } from "@shared/schema";
 
 // Business Settings Schema
 const businessSettingsSchema = z.object({
@@ -58,12 +59,8 @@ const businessSettingsSchema = z.object({
 
 type BusinessSettingsFormData = z.infer<typeof businessSettingsSchema>;
 
-// Default services by business type
-const DEFAULT_SERVICES = {
-  Hairstylist: ["Women's Cut", "Blowout", "Color & Highlights", "Silk Press", "Deep Conditioning"],
-  Barber: ["Men's Haircut", "Beard Trim", "Fade / Taper", "Line Up", "Hot Towel Shave"],
-  "Nail Technician": ["Gel Manicure", "Acrylic Full Set", "Nail Art Design", "Dip Powder Nails", "Pedicure"],
-};
+// Use shared default services
+const DEFAULT_SERVICES = DEFAULT_SERVICES_BY_TYPE;
 
 export default function BusinessSettingsPage() {
   const [location, setLocation] = useLocation();
