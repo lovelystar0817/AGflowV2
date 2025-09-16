@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql } from "drizzle-orm";
@@ -65,6 +65,25 @@ export interface IStorage {
   // AI Analytics methods
   getClientsLastVisit(stylistId: string): Promise<{ clientId: string; fullName: string; lastVisitDate: string | null; daysSince: number | null; totalVisits: number }[]>;
   getInactiveClients(stylistId: string, weeks?: number, optInOnly?: boolean): Promise<{ clientId: string; fullName: string; email: string | null; daysSinceLastVisit: number | null; totalVisits: number }[]>;
+  
+  // Notification management  
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotifications(stylistId: string): Promise<Notification[]>;
+  updateNotificationStatus(id: string, status: 'sent' | 'failed', errorMessage?: string): Promise<void>;
+  
+  // Analytics
+  getAnalytics(stylistId: string, period: 'week' | 'month'): Promise<{
+    appointmentCount: number;
+    revenue: number;
+    topServices: { serviceName: string; count: number; revenue: number }[];
+    busyDays: { date: string; appointmentCount: number }[];
+  }>;
+  
+  // Slot suggestions
+  getSuggestedSlots(stylistId: string, serviceId: number, days: number): Promise<{
+    date: string;
+    slots: string[];
+  }[]>;
   
   // Legacy method names for compatibility with auth blueprint
   getUser(id: string): Promise<Stylist | undefined>;
@@ -867,6 +886,150 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(user: InsertStylist): Promise<Stylist> {
     return this.createStylist(user);
+  }
+
+  // Notification management methods
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db.insert(notifications).values(notification).returning();
+    return created;
+  }
+
+  async getNotifications(stylistId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(eq(notifications.stylistId, stylistId));
+  }
+
+  async updateNotificationStatus(id: string, status: 'sent' | 'failed', errorMessage?: string): Promise<void> {
+    await db.update(notifications)
+      .set({ 
+        status, 
+        sentAt: new Date(),
+        errorMessage 
+      })
+      .where(eq(notifications.id, id));
+  }
+
+  // Analytics methods
+  async getAnalytics(stylistId: string, period: 'week' | 'month'): Promise<{
+    appointmentCount: number;
+    revenue: number;
+    topServices: { serviceName: string; count: number; revenue: number }[];
+    busyDays: { date: string; appointmentCount: number }[];
+  }> {
+    const daysBack = period === 'week' ? 7 : 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    // Get appointment count and revenue
+    const appointmentStats = await db
+      .select({
+        count: sql<number>`count(*)`,
+        revenue: sql<number>`sum(${appointments.totalPrice})`
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.stylistId, stylistId),
+          eq(appointments.status, 'completed'),
+          sql`${appointments.date} >= ${startDateStr}`
+        )
+      );
+
+    // Get top services
+    const topServices = await db
+      .select({
+        serviceName: stylistServices.serviceName,
+        count: sql<number>`count(*)`,
+        revenue: sql<number>`sum(${appointments.totalPrice})`
+      })
+      .from(appointments)
+      .innerJoin(stylistServices, eq(appointments.serviceId, stylistServices.id))
+      .where(
+        and(
+          eq(appointments.stylistId, stylistId),
+          eq(appointments.status, 'completed'),
+          sql`${appointments.date} >= ${startDateStr}`
+        )
+      )
+      .groupBy(stylistServices.serviceName)
+      .orderBy(sql`count(*) desc`)
+      .limit(5);
+
+    // Get busy days
+    const busyDays = await db
+      .select({
+        date: appointments.date,
+        appointmentCount: sql<number>`count(*)`
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.stylistId, stylistId),
+          sql`${appointments.date} >= ${startDateStr}`
+        )
+      )
+      .groupBy(appointments.date)
+      .orderBy(sql`count(*) desc`)
+      .limit(10);
+
+    return {
+      appointmentCount: appointmentStats[0]?.count || 0,
+      revenue: Number(appointmentStats[0]?.revenue || 0),
+      topServices: topServices.map(s => ({
+        serviceName: s.serviceName,
+        count: s.count,
+        revenue: Number(s.revenue)
+      })),
+      busyDays: busyDays.map(d => ({
+        date: d.date,
+        appointmentCount: d.appointmentCount
+      }))
+    };
+  }
+
+  // Slot suggestion methods
+  async getSuggestedSlots(stylistId: string, serviceId: number, days: number): Promise<{
+    date: string;
+    slots: string[];
+  }[]> {
+    const results = [];
+    const service = await db.select().from(stylistServices)
+      .where(and(eq(stylistServices.id, serviceId), eq(stylistServices.stylistId, stylistId)))
+      .limit(1);
+    
+    if (!service.length) return [];
+
+    const durationMinutes = service[0].durationMinutes || 30;
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const slots = await this.getAvailableSlots(stylistId, dateStr);
+      const filteredSlots = slots.filter((slot, index) => {
+        // Check if the service duration fits
+        const slotMinutes = parseInt(slot.split(':')[0]) * 60 + parseInt(slot.split(':')[1]);
+        const endSlotMinutes = slotMinutes + durationMinutes;
+        const endHour = Math.floor(endSlotMinutes / 60);
+        const endMin = endSlotMinutes % 60;
+        const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        
+        // Check if there are enough consecutive slots
+        const neededSlots = Math.ceil(durationMinutes / 30);
+        for (let j = 0; j < neededSlots; j++) {
+          if (!slots[index + j]) return false;
+        }
+        return true;
+      });
+      
+      results.push({
+        date: dateStr,
+        slots: filteredSlots.slice(0, 5) // Limit to top 5 suggestions per day
+      });
+    }
+    
+    return results;
   }
 }
 
