@@ -3,8 +3,10 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
+import { parseAICommand } from "./openai-service";
+import { apiRequest } from "./api-client";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rate limiting for auth endpoints
@@ -1094,18 +1096,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Command is required" });
       }
 
-      // For now, return a mock response - this will be replaced with actual AI processing
-      const mockResult = {
-        success: true,
-        action: "AI Command Processed",
-        details: `Received command: "${command.trim()}". AI processing will be implemented in the next phase.`,
+      // Get stylist business info
+      const stylist = await storage.getStylist(req.user.id);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+
+      // Parse command using OpenAI
+      console.log(`Processing AI command: "${command.trim()}" for stylist ${stylist.businessName}`);
+      const aiResponse = await parseAICommand(command.trim(), stylist);
+
+      if (aiResponse.action === "unknown") {
+        return res.json({
+          success: false,
+          action: "Command Not Understood",
+          details: aiResponse.error || "I couldn't understand that command. Try something like 'Send $20 coupon to inactive clients'",
+          count: 0
+        });
+      }
+
+      // Execute the AI action
+      if (aiResponse.action === "send_coupon") {
+        const result = await executeSendCouponAction(aiResponse, stylist, req.user.id);
+        return res.json(result);
+      }
+
+      // Fallback for unknown actions
+      return res.json({
+        success: false,
+        action: "Action Not Implemented",
+        details: `The action "${aiResponse.action}" is not yet implemented.`,
         count: 0
-      };
+      });
 
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      res.json(mockResult);
     } catch (error) {
       console.error("Error executing AI command:", error);
       res.status(500).json({ 
@@ -1116,6 +1139,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Helper function to execute send coupon action
+  async function executeSendCouponAction(aiResponse: any, stylist: any, stylistId: string) {
+    try {
+      const weeks = aiResponse.weeksInactive || 4;
+      const amount = aiResponse.amount || 20;
+      
+      // Get inactive clients
+      const inactiveClients = await storage.getInactiveClients(stylistId, weeks, true); // optInOnly = true
+      
+      if (inactiveClients.length === 0) {
+        return {
+          success: false,
+          action: "No Inactive Clients Found",
+          details: `No clients found who haven't visited in ${weeks} weeks and have opted in for marketing emails.`,
+          count: 0
+        };
+      }
+
+      // Create coupon
+      const couponName = `$${amount} Off - Inactive Client Promotion`;
+      const startDate = new Date().toISOString().split('T')[0];
+      const endDate = calculateCouponEndDate(startDate, "1month");
+
+      const coupon = await storage.createCoupon({
+        stylistId,
+        name: couponName,
+        type: "flat",
+        amount: amount.toString(),
+        startDate,
+        endDate
+      });
+
+      // Prepare email message
+      const businessName = stylist.businessName || "Your Stylist";
+      const message = `Hi! ${businessName} here. We miss you! Here's a special $${amount} off your next visit. Book soon - this offer expires on ${new Date(endDate).toLocaleDateString()}. We can't wait to see you again!`;
+      const subject = `We Miss You! $${amount} Off Your Next Visit - ${businessName}`;
+
+      // Send coupon to inactive clients
+      const clientIds = inactiveClients.map(client => client.clientId);
+      
+      const delivery = await storage.createCouponDelivery({
+        couponId: coupon.id,
+        recipientType: "custom",
+        clientIds,
+        message,
+        subject,
+        scheduledAt: new Date(),
+        logicRule: null
+      });
+
+      return {
+        success: true,
+        action: "Coupon Sent Successfully",
+        details: `Coupon "${couponName}" sent to ${inactiveClients.length} inactive clients (last visit > ${weeks} weeks ago). Expires ${new Date(endDate).toLocaleDateString()}.`,
+        count: inactiveClients.length
+      };
+
+    } catch (error) {
+      console.error("Error executing send coupon action:", error);
+      return {
+        success: false,
+        action: "Coupon Send Failed",
+        details: `Failed to send coupon: ${error instanceof Error ? error.message : "Unknown error"}`,
+        count: 0
+      };
+    }
+  }
 
   const httpServer = createServer(app);
 
