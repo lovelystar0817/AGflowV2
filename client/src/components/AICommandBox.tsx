@@ -82,6 +82,14 @@ export function AICommandBox() {
 
   const examplePrompts = [
     {
+      category: "Client Management",
+      prompts: [
+        "Add client Sarah Smith with phone 803-555-1234 and email sarah@example.com",
+        "Create new client John Doe, phone (555) 123-4567, email john@email.com",
+        "Add client Maria Garcia, phone: 555.987.6543, email: maria@gmail.com"
+      ]
+    },
+    {
       category: "Services & Coupons",
       prompts: [
         "Send a $20 coupon to inactive clients",
