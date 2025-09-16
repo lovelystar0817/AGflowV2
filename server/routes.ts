@@ -1036,6 +1036,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Analytics endpoints
+  app.get("/api/ai/clients-last-visit", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const clientsLastVisit = await storage.getClientsLastVisit(req.user.id);
+      res.json(clientsLastVisit);
+    } catch (error) {
+      console.error("Error fetching clients last visit data:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/ai/inactive-clients", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      // Parse query parameters with defaults
+      const weeks = req.query.weeks ? parseInt(req.query.weeks as string) : 4;
+      const optInOnly = req.query.optIn === 'true';
+      
+      // Validate weeks parameter
+      if (isNaN(weeks) || weeks < 1 || weeks > 52) {
+        return res.status(400).json({ error: "Invalid weeks parameter. Must be between 1 and 52." });
+      }
+      
+      const inactiveClients = await storage.getInactiveClients(req.user.id, weeks, optInOnly);
+      res.json(inactiveClients);
+    } catch (error) {
+      console.error("Error fetching inactive clients:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
