@@ -423,11 +423,16 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
   createdAt: timestamp("created_at").defaultNow(),
 }); // Removed indexes for zero-drift
 
+// Enum for notification types
+export const notificationTypeEnum = pgEnum("notification_type", ["thank_you", "follow_up", "rebook_prompt"]);
+
 // Notifications table for follow-up emails
 export const notifications = pgTable("notifications", {
   id: uuid("id").defaultRandom().primaryKey(),
   stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
   clientId: uuid("client_id").notNull().references(() => clients.id),
+  type: notificationTypeEnum("type").notNull(),
+  subject: text("subject").notNull(),
   message: text("message").notNull(),
   scheduledAt: timestamp("scheduled_at").notNull(),
   sentAt: timestamp("sent_at"),
@@ -496,10 +501,24 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   sentAt: true,
   status: true,
   errorMessage: true,
+}).extend({
+  type: z.enum(["thank_you", "follow_up", "rebook_prompt"], { required_error: "Notification type is required" }),
+  subject: z.string().min(1, "Subject is required").max(200, "Subject too long (limit: 200 characters)"),
+  message: z.string().min(1, "Message is required").max(5000, "Message too long (limit: 5000 characters)"),
+});
+
+// AI reminder scheduling schema for the /api/ai/schedule-reminder endpoint
+export const scheduleReminderSchema = z.object({
+  type: z.enum(["thank_you", "follow_up", "rebook_prompt"], { required_error: "Notification type is required" }),
+  subject: z.string().min(1, "Subject is required").max(200, "Subject too long (limit: 200 characters)"),
+  message: z.string().min(1, "Message is required").max(5000, "Message too long (limit: 5000 characters)"),
+  daysAgo: z.number().int().min(1, "Days ago must be at least 1").max(365, "Days ago cannot exceed 365"),
+  scheduledAt: z.string().datetime("Invalid datetime format").optional(), // Optional, defaults to immediate scheduling
 });
 
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+export type ScheduleReminder = z.infer<typeof scheduleReminderSchema>;
 
 // Helper functions for coupon management
 export function calculateCouponEndDate(startDate: string, duration: "2weeks" | "1month" | "3months"): string {
