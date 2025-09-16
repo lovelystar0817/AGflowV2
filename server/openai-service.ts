@@ -44,13 +44,12 @@ Business Context:
 Respond only with valid JSON.`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: command }
       ],
       response_format: { type: "json_object" },
-      temperature: 0.1, // Low temperature for more consistent parsing
     });
 
     const content = response.choices[0].message.content;
