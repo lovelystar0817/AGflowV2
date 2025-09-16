@@ -6,7 +6,6 @@ import { storage } from "./storage-instance";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand } from "./openai-service";
-import { apiRequest } from "./api-client";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rate limiting for auth endpoints
@@ -1143,10 +1142,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper function to execute send coupon action
   async function executeSendCouponAction(aiResponse: any, stylist: any, stylistId: string) {
     try {
-      const weeks = aiResponse.weeksInactive || 4;
-      const amount = aiResponse.amount || 20;
+      // Validate GPT response has required fields
+      if (!aiResponse.action || !aiResponse.weeksInactive || !aiResponse.amount) {
+        return {
+          success: false,
+          action: "Invalid AI Response",
+          details: "AI response missing required fields: action, weeksInactive, or amount",
+          count: 0
+        };
+      }
+
+      const weeks = aiResponse.weeksInactive;
+      const amount = aiResponse.amount;
       
-      // Get inactive clients
+      // Call inactive clients logic (equivalent to /api/ai/inactive-clients?weeks=X)
       const inactiveClients = await storage.getInactiveClients(stylistId, weeks, true); // optInOnly = true
       
       if (inactiveClients.length === 0) {
@@ -1158,8 +1167,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
 
-      // Create coupon
-      const couponName = `$${amount} Off - Inactive Client Promotion`;
+      // Create coupon (equivalent to POST /api/coupons) with name: "$X Off for You"
+      const couponName = `$${amount} Off for You`;
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = calculateCouponEndDate(startDate, "1month");
 
@@ -1172,12 +1181,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate
       });
 
-      // Prepare email message
+      // Prepare email content
       const businessName = stylist.businessName || "Your Stylist";
       const message = `Hi! ${businessName} here. We miss you! Here's a special $${amount} off your next visit. Book soon - this offer expires on ${new Date(endDate).toLocaleDateString()}. We can't wait to see you again!`;
       const subject = `We Miss You! $${amount} Off Your Next Visit - ${businessName}`;
 
-      // Send coupon to inactive clients
+      // Send coupon (equivalent to POST /api/coupon-deliveries) with client list and subject
       const clientIds = inactiveClients.map(client => client.clientId);
       
       const delivery = await storage.createCouponDelivery({
@@ -1190,10 +1199,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logicRule: null
       });
 
+      // Return how many clients received the offer and what the offer was
       return {
         success: true,
-        action: "Coupon Sent Successfully",
-        details: `Coupon "${couponName}" sent to ${inactiveClients.length} inactive clients (last visit > ${weeks} weeks ago). Expires ${new Date(endDate).toLocaleDateString()}.`,
+        action: "Coupon Sent Successfully", 
+        details: `${inactiveClients.length} clients received "${couponName}" offer. Expires ${new Date(endDate).toLocaleDateString()}.`,
         count: inactiveClients.length
       };
 
