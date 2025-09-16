@@ -89,7 +89,8 @@ import {
   Clock,
   TrendingUp,
   Ticket,
-  Send
+  Send,
+  Sparkles
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -104,6 +105,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AICommandBox } from "@/components/AICommandBox";
 
 type ServiceFormData = z.infer<typeof serviceFormSchema>;
 
@@ -708,6 +710,14 @@ export default function DashboardPage() {
                   <span className="hidden md:inline">Coupons</span>
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="ai-assistant" 
+                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
+                  data-testid="tab-ai-assistant"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span className="hidden md:inline">AI Assistant</span>
+                </TabsTrigger>
+                <TabsTrigger 
                   value="reviews" 
                   className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
                   data-testid="tab-reviews"
@@ -1048,6 +1058,19 @@ export default function DashboardPage() {
                       </CardContent>
                     </Card>
                   )}
+                </div>
+              </TabsContent>
+
+              {/* AI Assistant Tab */}
+              <TabsContent value="ai-assistant" className="mt-0">
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-card-foreground mb-2">AI Assistant</h2>
+                    <p className="text-muted-foreground">
+                      Use natural language to automate your business tasks. Tell the AI what you want to do and it will handle the rest.
+                    </p>
+                  </div>
+                  <AICommandBox />
                 </div>
               </TabsContent>
 

@@ -1081,6 +1081,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Command execution endpoint
+  app.post("/api/ai/execute", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { command } = req.body;
+      
+      if (!command || typeof command !== "string" || !command.trim()) {
+        return res.status(400).json({ error: "Command is required" });
+      }
+
+      // For now, return a mock response - this will be replaced with actual AI processing
+      const mockResult = {
+        success: true,
+        action: "AI Command Processed",
+        details: `Received command: "${command.trim()}". AI processing will be implemented in the next phase.`,
+        count: 0
+      };
+
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      res.json(mockResult);
+    } catch (error) {
+      console.error("Error executing AI command:", error);
+      res.status(500).json({ 
+        success: false,
+        action: "Command Failed",
+        details: "Internal server error occurred while processing the AI command",
+        error: "Internal server error"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
