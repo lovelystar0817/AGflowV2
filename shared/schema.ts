@@ -53,6 +53,7 @@ export const stylistServices = pgTable("stylist_services", {
   stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
   serviceName: text("service_name").notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  durationMinutes: integer("duration_minutes"), // Optional - fallback to stylists.defaultAppointmentDuration
   isCustom: boolean("is_custom").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -90,6 +91,7 @@ export const serviceSchema = z.object({
     const num = parseFloat(val);
     return !isNaN(num) && num > 0 && num <= 9999.99;
   }, "Price must be a valid number between 0.01 and 9999.99"),
+  durationMinutes: z.number().int().min(15, "Duration must be at least 15 minutes").max(480, "Duration cannot exceed 8 hours").optional(),
   isCustom: z.boolean().default(false),
 });
 
@@ -97,6 +99,7 @@ export const serviceSchema = z.object({
 export const serviceFormSchema = z.object({
   serviceName: z.string().min(1, "Service name is required").max(100, "Service name must be 100 characters or less"),
   price: z.number().positive("Price must be greater than 0").max(9999.99, "Price must be less than $10,000"),
+  durationMinutes: z.number().int().min(15, "Duration must be at least 15 minutes").max(480, "Duration cannot exceed 8 hours").optional(),
   isCustom: z.boolean().default(false),
 });
 
