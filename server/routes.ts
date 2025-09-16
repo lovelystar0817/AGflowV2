@@ -5,7 +5,8 @@ import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
-import { parseAICommand } from "./openai-service";
+import { parseAICommand, parseSchedulingCommand } from "./openai-service";
+import { findBestClientMatch, findBestServiceMatch, checkAppointmentConflicts, checkAvailability, calculateEndTime, isWithinBusinessHours } from "./scheduling-utils";
 import { getNotificationJobService } from "./notification-job";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -18,9 +19,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     legacyHeaders: false,
   });
 
+  // CRITICAL SECURITY: Rate limiting for AI endpoints to prevent abuse and cost exposure
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // Limit each IP to 10 AI requests per minute
+    message: "Too many AI requests, please try again later. AI operations are limited to prevent abuse.",
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      // Rate limit by both IP and user ID for authenticated users
+      return req.user ? `${req.ip}-${req.user.id}` : req.ip || 'unknown';
+    },
+  });
+
   // Apply rate limiting to auth routes
   app.use("/api/register", authLimiter);
   app.use("/api/login", authLimiter);
+
+  // Apply AI rate limiting to AI endpoints
+  app.use("/api/ai/book-appointment", aiLimiter);
+  app.use("/api/ai/update-availability", aiLimiter);
+  app.use("/api/ai/execute", aiLimiter);
 
   // Setup authentication routes
   setupAuth(app);
@@ -1344,6 +1363,447 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching slot suggestions:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST /api/ai/book-appointment - AI-powered appointment booking
+  app.post("/api/ai/book-appointment", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { command } = req.body;
+      
+      if (!command || typeof command !== "string" || !command.trim()) {
+        return res.status(400).json({ error: "Command is required" });
+      }
+
+      // Get stylist business info
+      const stylist = await storage.getStylist(req.user.id);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+
+      // Parse command using OpenAI
+      console.log(`Processing AI scheduling command: "${command.trim()}" for stylist ${stylist.businessName}`);
+      const aiResponse = await parseSchedulingCommand(command.trim(), stylist);
+
+      if (aiResponse.action === "unknown") {
+        return res.status(400).json({
+          success: false,
+          error: aiResponse.error || "I couldn't understand that command. Try something like 'Book Ashley for a haircut at 2pm on Friday'"
+        });
+      }
+
+      if (aiResponse.action !== "book_appointment" && aiResponse.action !== "reschedule_appointment") {
+        return res.status(400).json({
+          success: false,
+          error: "This endpoint only handles booking and rescheduling appointments. Use the availability endpoint for time blocking."
+        });
+      }
+
+      // IMPORTANT: Explicit validation calls for security and data integrity
+      
+      // Validate required fields
+      if (!aiResponse.clientName || !aiResponse.date || !aiResponse.time) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required information: client name, date, and time are required"
+        });
+      }
+
+      // Additional explicit date/time validation beyond Zod
+      const appointmentDate = new Date(aiResponse.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (appointmentDate < today) {
+        return res.status(400).json({
+          success: false,
+          error: "Cannot book appointments in the past"
+        });
+      }
+
+      // Validate appointment is not too far in the future (1 year max)
+      const oneYearFromNow = new Date();
+      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      if (appointmentDate > oneYearFromNow) {
+        return res.status(400).json({
+          success: false,
+          error: "Cannot book appointments more than 1 year in advance"
+        });
+      }
+
+      // Validate time format and bounds
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(aiResponse.time)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid time format. Use HH:MM format (00:00-23:59)"
+        });
+      }
+
+      // Get all clients and services for the stylist
+      const [clients, services] = await Promise.all([
+        storage.getClientsByStylist(req.user.id),
+        storage.getStylistServices(req.user.id)
+      ]);
+
+      // Find matching client
+      const matchedClient = findBestClientMatch(aiResponse.clientName, clients);
+      if (!matchedClient) {
+        return res.status(404).json({
+          success: false,
+          error: `Client "${aiResponse.clientName}" not found. Please add them to your client list first.`
+        });
+      }
+
+      // Find matching service (optional, will use default duration if not found)
+      let matchedService = null;
+      let durationMinutes = stylist.defaultAppointmentDuration || 30;
+      
+      if (aiResponse.serviceName) {
+        matchedService = findBestServiceMatch(aiResponse.serviceName, services);
+        if (matchedService) {
+          // IMPORTANT: Validate service belongs to the stylist for security
+          if (matchedService.stylistId !== req.user.id) {
+            return res.status(403).json({
+              success: false,
+              error: "Access denied: Service does not belong to authenticated stylist"
+            });
+          }
+          durationMinutes = matchedService.durationMinutes || durationMinutes;
+        }
+      }
+
+      // IMPORTANT: Explicit duration bounds validation
+      if (durationMinutes < 15 || durationMinutes > 480) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid appointment duration. Must be between 15 minutes and 8 hours"
+        });
+      }
+
+      const endTime = calculateEndTime(aiResponse.time, durationMinutes);
+
+      // IMPORTANT: Explicit business hours validation with stylist-specific hours
+      let businessStart = "09:00";
+      let businessEnd = "18:00";
+      
+      // Use stylist's actual business hours if available
+      if (stylist.businessHours) {
+        const dayOfWeek = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        const dayHours = stylist.businessHours[dayOfWeek];
+        if (dayHours && !dayHours.isClosed) {
+          businessStart = dayHours.open;
+          businessEnd = dayHours.close;
+        } else if (dayHours?.isClosed) {
+          return res.status(400).json({
+            success: false,
+            error: `Business is closed on ${dayOfWeek}s`
+          });
+        }
+      }
+
+      // Check if within business hours using actual business hours
+      if (!isWithinBusinessHours(aiResponse.time, endTime, businessStart, businessEnd)) {
+        return res.status(400).json({
+          success: false,
+          error: `Appointment time is outside business hours (${businessStart}-${businessEnd})`
+        });
+      }
+
+      // Check availability
+      const availabilityCheck = await checkAvailability(
+        req.user.id, 
+        aiResponse.date, 
+        aiResponse.time, 
+        durationMinutes
+      );
+
+      if (!availabilityCheck.isAvailable) {
+        return res.status(409).json({
+          success: false,
+          error: availabilityCheck.reason || "Time slot not available"
+        });
+      }
+
+      // IMPORTANT: Enhanced rescheduling logic to handle multiple appointments properly
+      let appointmentToReschedule = null;
+      let excludeAppointmentId: string | undefined = undefined;
+
+      if (aiResponse.action === "reschedule_appointment") {
+        // For rescheduling, we need to find the existing appointment
+        if (aiResponse.existingAppointmentId) {
+          // If AI provided appointment ID, use it
+          appointmentToReschedule = await storage.getAppointment(aiResponse.existingAppointmentId);
+          if (!appointmentToReschedule || appointmentToReschedule.stylistId !== req.user.id) {
+            return res.status(404).json({
+              success: false,
+              error: `Appointment with ID ${aiResponse.existingAppointmentId} not found or access denied`
+            });
+          }
+          excludeAppointmentId = appointmentToReschedule.id;
+        } else {
+          // If no appointment ID provided, find the most recent appointment for this client
+          const clientAppointments = await storage.getAppointmentsByStylist(req.user.id);
+          const matchingAppointments = clientAppointments
+            .filter(apt => apt.clientId === matchedClient.id)
+            .filter(apt => apt.status === "scheduled" || apt.status === "confirmed")
+            .sort((a, b) => {
+              // Sort by date desc, then by start time desc to get the most recent future appointment
+              const dateCompare = b.date.localeCompare(a.date);
+              if (dateCompare !== 0) return dateCompare;
+              return b.startTime.localeCompare(a.startTime);
+            });
+
+          if (matchingAppointments.length === 0) {
+            return res.status(404).json({
+              success: false,
+              error: `No scheduled appointments found for ${matchedClient.firstName} ${matchedClient.lastName} to reschedule`
+            });
+          }
+
+          if (matchingAppointments.length > 1) {
+            // Multiple appointments found - provide helpful error with appointment details
+            const appointmentDetails = matchingAppointments.slice(0, 3).map(apt => 
+              `${apt.date} at ${apt.startTime}`
+            ).join(', ');
+            return res.status(400).json({
+              success: false,
+              error: `Multiple appointments found for ${matchedClient.firstName} ${matchedClient.lastName}. ` +
+                     `Please be more specific or cancel one first. Appointments: ${appointmentDetails}` +
+                     (matchingAppointments.length > 3 ? ` and ${matchingAppointments.length - 3} more...` : '')
+            });
+          }
+
+          appointmentToReschedule = matchingAppointments[0];
+          excludeAppointmentId = appointmentToReschedule.id;
+        }
+      }
+
+      // Check for conflicts (excluding the appointment being rescheduled)
+      const conflictCheck = await checkAppointmentConflicts(
+        req.user.id,
+        aiResponse.date,
+        aiResponse.time,
+        durationMinutes,
+        excludeAppointmentId
+      );
+
+      if (conflictCheck.hasConflict) {
+        return res.status(409).json({
+          success: false,
+          error: "Time slot conflicts with an existing appointment"
+        });
+      }
+
+      let appointment;
+      
+      if (aiResponse.action === "reschedule_appointment" && appointmentToReschedule) {
+        // Update the existing appointment for rescheduling
+        const updateData = {
+          date: aiResponse.date,
+          startTime: aiResponse.time,
+          endTime: endTime,
+          serviceId: matchedService?.id || appointmentToReschedule.serviceId,
+          totalPrice: (matchedService?.price || appointmentToReschedule.totalPrice).toString(),
+          notes: appointmentToReschedule.notes ? 
+            `${appointmentToReschedule.notes} | Rescheduled via AI: ${command.trim()}` : 
+            `Rescheduled via AI: ${command.trim()}`,
+          updatedAt: new Date(),
+        };
+        
+        appointment = await storage.updateAppointment(appointmentToReschedule.id, updateData);
+      } else {
+        // Create new appointment for booking
+        const appointmentData = {
+          stylistId: req.user.id,
+          clientId: matchedClient.id,
+          serviceId: matchedService?.id || 1, // Default service ID if no specific service
+          date: aiResponse.date,
+          startTime: aiResponse.time,
+          endTime: endTime,
+          status: "scheduled" as const,
+          totalPrice: (matchedService?.price || 0).toString(),
+          notes: `AI-booked: ${command.trim()}`
+        };
+
+        appointment = await storage.createAppointment(appointmentData);
+      }
+
+      const actionText = aiResponse.action === "reschedule_appointment" ? "rescheduled" : "booked";
+      const statusCode = aiResponse.action === "reschedule_appointment" ? 200 : 201;
+      
+      res.status(statusCode).json({
+        success: true,
+        action: aiResponse.action,
+        message: `Successfully ${actionText} ${matchedClient.firstName} ${matchedClient.lastName} for ${matchedService?.serviceName || 'appointment'} on ${aiResponse.date} at ${aiResponse.time}`,
+        appointment: {
+          ...appointment,
+          clientName: `${matchedClient.firstName} ${matchedClient.lastName}`,
+          serviceName: matchedService?.serviceName || 'General Appointment',
+          duration: durationMinutes,
+          wasRescheduled: aiResponse.action === "reschedule_appointment"
+        }
+      });
+
+    } catch (error) {
+      console.error("Error booking appointment:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Internal server error occurred while booking appointment"
+      });
+    }
+  });
+
+  // PATCH /api/ai/update-availability - AI-powered availability management
+  app.patch("/api/ai/update-availability", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { command } = req.body;
+      
+      if (!command || typeof command !== "string" || !command.trim()) {
+        return res.status(400).json({ error: "Command is required" });
+      }
+
+      // Get stylist business info
+      const stylist = await storage.getStylist(req.user.id);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+
+      // Parse command using OpenAI
+      console.log(`Processing AI availability command: "${command.trim()}" for stylist ${stylist.businessName}`);
+      const aiResponse = await parseSchedulingCommand(command.trim(), stylist);
+
+      if (aiResponse.action === "unknown") {
+        return res.status(400).json({
+          success: false,
+          error: aiResponse.error || "I couldn't understand that command. Try something like 'Block off next Monday morning' or 'Set my hours next week from 10am-4pm'"
+        });
+      }
+
+      if (aiResponse.action !== "block_time" && aiResponse.action !== "set_hours") {
+        return res.status(400).json({
+          success: false,
+          error: "This endpoint only handles time blocking and setting hours. Use the booking endpoint for appointments."
+        });
+      }
+
+      if (aiResponse.action === "block_time") {
+        // Block off time
+        if (!aiResponse.date || !aiResponse.startTime || !aiResponse.endTime) {
+          return res.status(400).json({
+            success: false,
+            error: "Missing required information: date, start time, and end time are required for blocking time"
+          });
+        }
+
+        // Get existing availability for the date
+        const existingAvailability = await storage.getStylistAvailability(req.user.id, aiResponse.date);
+        
+        if (!existingAvailability || !existingAvailability.isOpen) {
+          return res.status(400).json({
+            success: false,
+            error: "No availability set for this date. Please set your hours first."
+          });
+        }
+
+        // Remove the blocked time from existing time ranges
+        const timeRanges = existingAvailability.timeRanges || [];
+        const blockStart = aiResponse.startTime;
+        const blockEnd = aiResponse.endTime;
+        
+        const newTimeRanges = [];
+        
+        for (const range of timeRanges) {
+          if (range.end <= blockStart || range.start >= blockEnd) {
+            // No overlap, keep the range
+            newTimeRanges.push(range);
+          } else {
+            // There's overlap, split the range
+            if (range.start < blockStart) {
+              newTimeRanges.push({ start: range.start, end: blockStart });
+            }
+            if (range.end > blockEnd) {
+              newTimeRanges.push({ start: blockEnd, end: range.end });
+            }
+          }
+        }
+
+        await storage.updateStylistAvailability(req.user.id, aiResponse.date, { timeRanges: newTimeRanges });
+
+        res.json({
+          success: true,
+          message: `Successfully blocked time from ${blockStart} to ${blockEnd} on ${aiResponse.date}`,
+          date: aiResponse.date,
+          blockedTime: { start: blockStart, end: blockEnd }
+        });
+
+      } else if (aiResponse.action === "set_hours") {
+        // Set working hours
+        if (!aiResponse.days || !aiResponse.startTime || !aiResponse.endTime) {
+          return res.status(400).json({
+            success: false,
+            error: "Missing required information: days, start time, and end time are required for setting hours"
+          });
+        }
+
+        const results = [];
+        const currentDate = new Date();
+        
+        // Calculate dates for the specified days
+        for (const dayName of aiResponse.days) {
+          // Find the next occurrence of this day
+          const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(dayName.toLowerCase());
+          if (dayIndex === -1) continue;
+          
+          const targetDate = new Date(currentDate);
+          const currentDay = targetDate.getDay();
+          const daysUntilTarget = (dayIndex - currentDay + 7) % 7;
+          if (daysUntilTarget === 0 && targetDate.getHours() > 18) {
+            // If it's the same day but after business hours, set for next week
+            targetDate.setDate(targetDate.getDate() + 7);
+          } else {
+            targetDate.setDate(targetDate.getDate() + daysUntilTarget);
+          }
+          
+          const dateString = targetDate.toISOString().split('T')[0];
+          
+          const availabilityData = {
+            stylistId: req.user.id,
+            date: dateString,
+            isOpen: true,
+            timeRanges: [{ start: aiResponse.startTime, end: aiResponse.endTime }]
+          };
+
+          try {
+            await storage.setStylistAvailability(availabilityData);
+            results.push({ date: dateString, day: dayName });
+          } catch (error) {
+            console.error(`Error setting availability for ${dateString}:`, error);
+          }
+        }
+
+        res.json({
+          success: true,
+          message: `Successfully set hours ${aiResponse.startTime}-${aiResponse.endTime} for ${results.length} day(s)`,
+          hours: { start: aiResponse.startTime, end: aiResponse.endTime },
+          updatedDates: results
+        });
+      }
+
+    } catch (error) {
+      console.error("Error updating availability:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Internal server error occurred while updating availability"
+      });
     }
   });
 
