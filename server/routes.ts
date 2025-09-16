@@ -1142,6 +1142,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(result);
       }
 
+      if (aiResponse.action === "add_client") {
+        const result = await executeAddClientAction(aiResponse, req.user.id);
+        return res.json(result);
+      }
+
       // Fallback for unknown actions
       return res.json({
         success: false,
@@ -1235,6 +1240,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         action: "Coupon Send Failed",
         details: `Failed to send coupon: ${error instanceof Error ? error.message : "Unknown error"}`,
+        count: 0
+      };
+    }
+  }
+
+  // Helper function to execute add client action
+  async function executeAddClientAction(aiResponse: any, stylistId: string) {
+    try {
+      // Validate GPT response has required fields
+      if (!aiResponse.name || !aiResponse.phone || !aiResponse.email) {
+        return {
+          success: false,
+          action: "Missing Client Information",
+          details: "❌ Sorry, I couldn't extract all the required client details. Please try again with name, phone, and email.",
+          count: 0
+        };
+      }
+
+      // Additional validation for phone format (basic validation for various formats)
+      const phoneRegex = /^[\+]?[\d\s\-\(\)\.]{10,}$/;
+      if (!phoneRegex.test(aiResponse.phone.replace(/\s/g, ''))) {
+        return {
+          success: false,
+          action: "Invalid Phone Number",
+          details: "❌ Sorry, the phone number format appears to be invalid. Please provide a valid phone number.",
+          count: 0
+        };
+      }
+
+      // Additional validation for email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(aiResponse.email)) {
+        return {
+          success: false,
+          action: "Invalid Email Address", 
+          details: "❌ Sorry, the email address format appears to be invalid. Please provide a valid email address.",
+          count: 0
+        };
+      }
+
+      // Split name into firstName and lastName
+      const nameParts = aiResponse.name.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+      // Check if client already exists (by email to avoid duplicates)
+      const existingClients = await storage.getClientsByStylist(stylistId);
+      const existingClient = existingClients.find(client => 
+        client.email?.toLowerCase() === aiResponse.email.toLowerCase()
+      );
+
+      if (existingClient) {
+        return {
+          success: false,
+          action: "Client Already Exists",
+          details: `❌ A client with email ${aiResponse.email} already exists in your client list.`,
+          count: 0
+        };
+      }
+
+      // Create the client
+      const newClient = await storage.createClient({
+        stylistId,
+        firstName,
+        lastName,
+        email: aiResponse.email,
+        phone: aiResponse.phone,
+        optInMarketing: false, // Default to false, can be updated later
+      });
+
+      return {
+        success: true,
+        action: "Client Added Successfully",
+        details: `✅ Client ${aiResponse.name} was successfully added.`,
+        count: 1
+      };
+
+    } catch (error) {
+      console.error("Error executing add client action:", error);
+      return {
+        success: false,
+        action: "Add Client Failed",
+        details: error instanceof Error ? error.message : "Unknown error occurred while adding client",
         count: 0
       };
     }

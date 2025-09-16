@@ -6,20 +6,26 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // CRITICAL SECURITY: Robust schema validation for OpenAI responses
 const aiActionResponseSchema = z.object({
-  action: z.enum(["send_coupon", "unknown"]),
+  action: z.enum(["send_coupon", "add_client", "unknown"]),
   weeksInactive: z.number().int().min(1).max(52).optional(),
   amount: z.number().positive().max(10000).optional(),
   deliveryMethod: z.enum(["email"]).optional(),
+  name: z.string().min(1).max(200).optional(),
+  phone: z.string().min(1).max(50).optional(),
+  email: z.string().email().optional(),
   error: z.string().optional(),
 }).refine(
   (data) => {
     if (data.action === "send_coupon") {
       return data.weeksInactive !== undefined && data.amount !== undefined && data.deliveryMethod !== undefined;
     }
+    if (data.action === "add_client") {
+      return data.name !== undefined && data.phone !== undefined && data.email !== undefined;
+    }
     return true;
   },
   {
-    message: "send_coupon action requires weeksInactive, amount, and deliveryMethod",
+    message: "send_coupon action requires weeksInactive, amount, and deliveryMethod; add_client action requires name, phone, and email",
   }
 );
 
@@ -87,6 +93,9 @@ export interface AIActionResponse {
   weeksInactive?: number;
   amount?: number;
   deliveryMethod?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
   error?: string;
 }
 
@@ -111,12 +120,18 @@ You must respond with a JSON object describing what to do.
 
 Available actions:
 - "send_coupon": Send a coupon to clients
+- "add_client": Add a new client to the database
 - "unknown": For commands you can't understand
 
 For send_coupon actions, include:
 - weeksInactive: number (how many weeks since last visit, default 4, must be 1-52)
 - amount: number (dollar amount for coupon, must be positive, max $10,000)
 - deliveryMethod: "email" (always email for now)
+
+For add_client actions, include:
+- name: string (full name, required, max 200 chars)
+- phone: string (phone number, required, max 50 chars)
+- email: string (valid email address, required)
 
 Examples:
 Input: "Send $25 coupon to inactive clients"
@@ -125,8 +140,14 @@ Output: {"action": "send_coupon", "weeksInactive": 4, "amount": 25, "deliveryMet
 Input: "Send $20 off to clients who haven't been here in 6 weeks"
 Output: {"action": "send_coupon", "weeksInactive": 6, "amount": 20, "deliveryMethod": "email"}
 
+Input: "Add client Sarah Smith with phone 803-555-1234 and email sarah@example.com"
+Output: {"action": "add_client", "name": "Sarah Smith", "phone": "803-555-1234", "email": "sarah@example.com"}
+
+Input: "Create new client John Doe, phone: (555) 123-4567, email john@email.com"
+Output: {"action": "add_client", "name": "John Doe", "phone": "(555) 123-4567", "email": "john@email.com"}
+
 Input: "What's the weather like?"
-Output: {"action": "unknown", "error": "I can only help with salon business tasks like sending coupons to clients"}
+Output: {"action": "unknown", "error": "I can only help with salon business tasks like sending coupons to clients or adding clients"}
 
 Business Context:
 - Business Name: ${stylistInfo.businessName || "Your Salon"}
@@ -142,6 +163,7 @@ Respond only with valid JSON.`;
         { role: "user", content: command }
       ],
       response_format: { type: "json_object" },
+      temperature: 0, // Deterministic parsing for client data extraction
     });
 
     const content = response.choices[0].message.content;
