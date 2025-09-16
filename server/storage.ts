@@ -62,6 +62,10 @@ export interface IStorage {
   
   sessionStore: session.Store;
   
+  // AI Analytics methods
+  getClientsLastVisit(stylistId: string): Promise<{ clientId: string; fullName: string; lastVisitDate: string | null; daysSince: number | null; totalVisits: number }[]>;
+  getInactiveClients(stylistId: string, weeks?: number, optInOnly?: boolean): Promise<{ clientId: string; fullName: string; email: string | null; daysSinceLastVisit: number | null; totalVisits: number }[]>;
+  
   // Legacy method names for compatibility with auth blueprint
   getUser(id: string): Promise<Stylist | undefined>;
   getUserByUsername(username: string): Promise<Stylist | undefined>;
@@ -750,6 +754,106 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return completedAppointments.length;
+  }
+
+  // AI Analytics methods
+  async getClientsLastVisit(stylistId: string): Promise<{ clientId: string; fullName: string; lastVisitDate: string | null; daysSince: number | null; totalVisits: number }[]> {
+    // Get all clients for the stylist
+    const stylistClients = await this.getClientsByStylist(stylistId);
+    
+    const results = await Promise.all(
+      stylistClients.map(async (client) => {
+        // Get all completed appointments for this client
+        const completedAppointments = await db.select({
+          date: appointments.date,
+          createdAt: appointments.createdAt
+        }).from(appointments).where(
+          and(
+            eq(appointments.stylistId, stylistId),
+            eq(appointments.clientId, client.id),
+            eq(appointments.status, 'completed')
+          )
+        ).orderBy(sql`${appointments.date} DESC, ${appointments.createdAt} DESC`);
+        
+        const totalVisits = completedAppointments.length;
+        let lastVisitDate: string | null = null;
+        let daysSince: number | null = null;
+        
+        if (completedAppointments.length > 0) {
+          lastVisitDate = completedAppointments[0].date;
+          const today = new Date();
+          const lastVisit = new Date(lastVisitDate);
+          daysSince = Math.floor((today.getTime() - lastVisit.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        return {
+          clientId: client.id,
+          fullName: `${client.firstName} ${client.lastName}`.trim(),
+          lastVisitDate,
+          daysSince,
+          totalVisits
+        };
+      })
+    );
+    
+    return results;
+  }
+
+  async getInactiveClients(stylistId: string, weeks: number = 4, optInOnly: boolean = false): Promise<{ clientId: string; fullName: string; email: string | null; daysSinceLastVisit: number | null; totalVisits: number }[]> {
+    // Get all clients with last visit data
+    const allClientsLastVisit = await this.getClientsLastVisit(stylistId);
+    
+    // Calculate cutoff date for inactive clients
+    const cutoffDays = weeks * 7;
+    
+    // Filter inactive clients
+    const inactiveClients = allClientsLastVisit.filter(client => {
+      // If client has never visited, they are inactive
+      if (client.daysSince === null) {
+        return true;
+      }
+      
+      // Check if client is inactive (last visit was more than cutoff days ago)
+      return client.daysSince > cutoffDays;
+    });
+    
+    // If optInOnly is true, filter to only clients who opted in for marketing
+    if (optInOnly) {
+      // Get client details to check opt-in status
+      const clientsWithOptIn = await Promise.all(
+        inactiveClients.map(async (clientData) => {
+          const client = await this.getClient(clientData.clientId);
+          if (client && client.optInMarketing) {
+            return {
+              clientId: clientData.clientId,
+              fullName: clientData.fullName,
+              email: client.email,
+              daysSinceLastVisit: clientData.daysSince,
+              totalVisits: clientData.totalVisits
+            };
+          }
+          return null;
+        })
+      );
+      
+      return clientsWithOptIn.filter((client): client is NonNullable<typeof client> => client !== null);
+    }
+    
+    // For all clients, get their email addresses
+    const clientsWithEmail = await Promise.all(
+      inactiveClients.map(async (clientData) => {
+        const client = await this.getClient(clientData.clientId);
+        return {
+          clientId: clientData.clientId,
+          fullName: clientData.fullName,
+          email: client?.email || null,
+          daysSinceLastVisit: clientData.daysSince,
+          totalVisits: clientData.totalVisits
+        };
+      })
+    );
+    
+    return clientsWithEmail;
   }
 
   // Legacy methods for compatibility with auth blueprint
