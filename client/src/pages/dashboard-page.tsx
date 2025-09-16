@@ -19,7 +19,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
 import QRCodeSection from "@/components/qr-code-section";
@@ -622,123 +621,107 @@ export default function DashboardPage() {
             <p className="opacity-90">Here's what's happening with your business today.</p>
           </div>
           
-          {/* Quick Stats */}
+          {/* Today's Snapshot Card */}
           <TooltipProvider>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mt-6">
-              {stats.map((stat, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <Card 
-                      className={`border border-border hover:shadow-md transition-shadow ${
-                        stat.isClickable ? 'cursor-pointer hover:bg-muted/50' : 'cursor-help'
-                      }`}
-                      onClick={stat.isClickable ? stat.onClick : undefined}
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                            <div className="flex items-center justify-between mt-1">
-                              <p 
-                                className={`text-card-foreground ${
-                                  stat.title === "Open Time Slots Today" && (stat.value?.includes("Not Set Yet") || stat.value?.includes("Fully Booked"))
-                                    ? "text-lg font-medium" 
-                                    : "text-2xl font-bold"
-                                }`} 
-                                data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}
-                              >
-                                {stat.value}
-                              </p>
-                              {stat.isClickable && !stat.isLoading && (
-                                <Button variant="ghost" size="sm" className="ml-2 p-1 h-auto">
-                                  <Edit className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <div className={`h-12 w-12 ${stat.bgColor} rounded-full flex items-center justify-center ml-4`}>
+            <Card className="rounded-2xl bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-md border-0 mt-6">
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Today's Snapshot</h2>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+                  {stats.map((stat, index) => (
+                    <Tooltip key={index}>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className={`text-center space-y-3 p-4 rounded-xl transition-all duration-200 ${
+                            stat.isClickable ? 'cursor-pointer hover:bg-white/50 dark:hover:bg-gray-700/50 hover:scale-105' : 'cursor-help'
+                          }`}
+                          onClick={stat.isClickable ? stat.onClick : undefined}
+                        >
+                          <div className={`mx-auto w-12 h-12 rounded-full ${stat.bgColor} flex items-center justify-center shadow-sm`}>
                             <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
                           </div>
+                          <div>
+                            <p 
+                              className={`text-gray-900 dark:text-gray-100 font-bold ${
+                                stat.title === "Open Time Slots Today" && (stat.value?.includes("Not Set Yet") || stat.value?.includes("Fully Booked"))
+                                  ? "text-lg" 
+                                  : "text-2xl"
+                              }`} 
+                              data-testid={`stat-${stat.title.toLowerCase().replace(/['.\s]/g, '-')}`}
+                            >
+                              {stat.value}
+                            </p>
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.title}</p>
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{stat.tooltip}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{stat.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TooltipProvider>
         </div>
 
-        {/* Tab Navigation and Content */}
-        <Card className="border border-border">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="border-b border-border">
-              <TabsList className="w-full justify-start h-auto p-0 bg-transparent rounded-none">
-                <TabsTrigger 
-                  value="calendar" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-calendar"
-                >
-                  <Calendar className="h-4 w-4" />
-                  <span className="hidden md:inline">Calendar</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="clients" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-clients"
-                >
-                  <Users className="h-4 w-4" />
-                  <span className="hidden md:inline">Clients</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="services" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-services"
-                >
-                  <Scissors className="h-4 w-4" />
-                  <span className="hidden md:inline">Services</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="coupons" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-coupons"
-                >
-                  <Tags className="h-4 w-4" />
-                  <span className="hidden md:inline">Coupons</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="ai-assistant" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-ai-assistant"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span className="hidden md:inline">AI Assistant</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="reviews" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-reviews"
-                >
-                  <Star className="h-4 w-4" />
-                  <span className="hidden md:inline">Reviews</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="qr-code" 
-                  className="flex items-center space-x-0 md:space-x-2 py-3 px-2 md:py-4 md:px-6 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none"
-                  data-testid="tab-qr-code"
-                >
-                  <QrCode className="h-4 w-4" />
-                  <span className="hidden md:inline">QR Code</span>
-                </TabsTrigger>
-              </TabsList>
-            </div>
+        {/* Action Buttons Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Button 
+            onClick={() => setActiveTab("calendar")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "calendar" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-calendar"
+          >
+            <Calendar className="h-6 w-6 text-blue-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Calendar</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("coupons")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "coupons" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-coupons"
+          >
+            <Ticket className="h-6 w-6 text-orange-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Send Coupon</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("ai-assistant")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "ai-assistant" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-ai-assistant"
+          >
+            <Sparkles className="h-6 w-6 text-purple-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Assistant</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("clients")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "clients" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-clients"
+          >
+            <UserPlus className="h-6 w-6 text-green-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Add New Client</span>
+          </Button>
+        </div>
 
-            <div className="p-6">
-              {/* Calendar Tab */}
-              <TabsContent value="calendar" className="mt-0">
+        {/* Content Area */}
+        <div className="space-y-6">
+          {/* Calendar Content */}
+          {activeTab === "calendar" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-4">
                     <h2 className="text-xl font-semibold text-card-foreground">
@@ -849,15 +832,23 @@ export default function DashboardPage() {
                     })}
                   </div>
                 </div>
-              </TabsContent>
+              </div>
+            </Card>
+          )}
 
-              {/* Clients Tab */}
-              <TabsContent value="clients" className="mt-0">
+          {/* Clients Content */}
+          {activeTab === "clients" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 <ClientsPage />
-              </TabsContent>
+              </div>
+            </Card>
+          )}
 
-              {/* Services Tab */}
-              <TabsContent value="services" className="mt-0">
+          {/* Services Content */}
+          {activeTab === "services" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-card-foreground">Service Management</h2>
                   <Button 
@@ -951,10 +942,14 @@ export default function DashboardPage() {
                     ))}
                   </div>
                 )}
-              </TabsContent>
+              </div>
+            </Card>
+          )}
 
-              {/* Coupons Tab */}
-              <TabsContent value="coupons" className="mt-0">
+          {/* Coupons Content */}
+          {activeTab === "coupons" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-card-foreground">Coupon Management</h2>
                   <Button 
@@ -1059,10 +1054,14 @@ export default function DashboardPage() {
                     </Card>
                   )}
                 </div>
-              </TabsContent>
+              </div>
+            </Card>
+          )}
 
-              {/* AI Assistant Tab */}
-              <TabsContent value="ai-assistant" className="mt-0">
+          {/* AI Assistant Content */}
+          {activeTab === "ai-assistant" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold text-card-foreground mb-2">AI Assistant</h2>
@@ -1072,10 +1071,14 @@ export default function DashboardPage() {
                   </div>
                   <AICommandBox />
                 </div>
-              </TabsContent>
+              </div>
+            </Card>
+          )}
 
-              {/* Reviews Tab */}
-              <TabsContent value="reviews" className="mt-0">
+          {/* Reviews Content */}
+          {activeTab === "reviews" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-card-foreground">Customer Reviews</h2>
                   <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-share-review-link">
@@ -1093,15 +1096,19 @@ export default function DashboardPage() {
                     <p className="text-muted-foreground">Collect and manage customer reviews to build your reputation and improve services.</p>
                   </div>
                 </div>
-              </TabsContent>
+              </div>
+            </Card>
+          )}
 
-              {/* QR Code Tab */}
-              <TabsContent value="qr-code" className="mt-0">
+          {/* QR Code Content */}
+          {activeTab === "qr-code" && (
+            <Card className="rounded-2xl shadow-md border-0">
+              <div className="p-6">
                 {user && <QRCodeSection user={user} />}
-              </TabsContent>
-            </div>
-          </Tabs>
-        </Card>
+              </div>
+            </Card>
+          )}
+        </div>
 
         {/* Service Management Dialog */}
         <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
