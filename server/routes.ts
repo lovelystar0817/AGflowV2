@@ -987,12 +987,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         client = newClient;
       }
 
-      // Calculate end time based on service duration (assume 1 hour default)
-      const startHour = parseInt(startTime.split(':')[0]);
-      const startMinute = parseInt(startTime.split(':')[1]);
-      const endHour = startMinute >= 30 ? startHour + 2 : startHour + 1;
-      const endMinute = startMinute >= 30 ? startMinute - 30 : startMinute + 30;
-      const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+      // Calculate end time based on service duration, fallback to stylist default
+      const durationMinutes = service.durationMinutes ?? stylist.defaultAppointmentDuration ?? 30;
+      const durationHours = durationMinutes / 60;
+      const endTime = getSlotEndTime(startTime, durationHours);
 
       // Create appointment
       const appointment = await storage.createAppointment({
@@ -1057,15 +1055,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      // Parse query parameters with defaults
-      const weeks = req.query.weeks ? parseInt(req.query.weeks as string) : 4;
-      const optInOnly = req.query.optIn === 'true';
+      // Validate query parameters with Zod
+      const querySchema = z.object({
+        weeks: z.string().optional().transform((val) => val ? parseInt(val) : 4)
+          .refine((val) => !isNaN(val) && val >= 1 && val <= 52, {
+            message: "weeks must be a number between 1 and 52"
+          }),
+        optIn: z.string().optional().transform((val) => val === 'true').default('true')
+      });
       
-      // Validate weeks parameter
-      if (isNaN(weeks) || weeks < 1 || weeks > 52) {
-        return res.status(400).json({ error: "Invalid weeks parameter. Must be between 1 and 52." });
+      const validation = querySchema.safeParse(req.query);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid query parameters", 
+          details: validation.error.errors 
+        });
       }
       
+      const { weeks, optIn: optInOnly } = validation.data;
       const inactiveClients = await storage.getInactiveClients(req.user.id, weeks, optInOnly);
       res.json(inactiveClients);
     } catch (error) {
