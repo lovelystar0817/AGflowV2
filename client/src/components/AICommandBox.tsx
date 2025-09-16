@@ -81,16 +81,7 @@ export function AICommandBox() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-purple-500" />
-            AI Command Center
-          </CardTitle>
-          <CardDescription>
-            Tell the AI what you want to do with natural language. For example: "Send $20 coupon to inactive clients" or "Show me clients who haven't visited in 6 weeks"
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Textarea
