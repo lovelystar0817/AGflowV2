@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand } from "./openai-service";
 
@@ -1225,10 +1225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const validation = insertNotificationSchema.safeParse({
-        ...req.body,
-        stylistId: req.user.id,
-      });
+      const validation = scheduleReminderSchema.safeParse(req.body);
 
       if (!validation.success) {
         return res.status(400).json({ 
@@ -1237,23 +1234,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // SECURITY FIX: Validate that clientId belongs to the authenticated stylist
-      const client = await storage.getClient(validation.data.clientId);
-      if (!client || client.stylistId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied: Client does not belong to this stylist" });
+      // Calculate the target date based on daysAgo
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() - validation.data.daysAgo);
+      const targetDateString = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+      // Get all appointments for the stylist on the target date
+      const appointments = await storage.getAppointmentsByStylist(req.user.id, targetDateString);
+      
+      // Get unique client IDs from appointments
+      const clientIds = Array.from(new Set(appointments.map(appointment => appointment.clientId)));
+
+      if (clientIds.length === 0) {
+        return res.status(200).json({ 
+          message: "No clients found with appointments on the target date",
+          count: 0,
+          targetDate: targetDateString
+        });
       }
 
-      // VALIDATION FIX: Ensure scheduledAt is in the future
-      const scheduledDate = new Date(validation.data.scheduledAt);
-      const now = new Date();
-      if (scheduledDate <= now) {
-        return res.status(400).json({ error: "scheduledAt must be in the future" });
+      // Set scheduled time (immediate if not provided)
+      const scheduledAt = validation.data.scheduledAt 
+        ? new Date(validation.data.scheduledAt)
+        : new Date();
+
+      // Create notifications for each client
+      const notifications = [];
+      for (const clientId of clientIds) {
+        const notificationData = {
+          stylistId: req.user.id,
+          clientId,
+          type: validation.data.type,
+          subject: validation.data.subject,
+          message: validation.data.message,
+          scheduledAt,
+        };
+
+        try {
+          const notification = await storage.createNotification(notificationData);
+          notifications.push(notification);
+        } catch (error) {
+          console.error(`Error creating notification for client ${clientId}:`, error);
+          // Continue with other clients even if one fails
+        }
       }
 
-      const notification = await storage.createNotification(validation.data);
-      res.status(201).json(notification);
+      res.status(201).json({ 
+        message: `Successfully scheduled ${notifications.length} reminder(s)`,
+        count: notifications.length,
+        targetDate: targetDateString,
+        notifications
+      });
     } catch (error) {
-      console.error("Error creating reminder:", error);
+      console.error("Error creating reminders:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
