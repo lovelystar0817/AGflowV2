@@ -22,6 +22,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { ArrowLeft, Send, Users, User, Brain, Calendar, CheckCircle, MessageSquare } from "lucide-react";
 import { z } from "zod";
 
@@ -439,6 +440,29 @@ export default function CouponSendPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Email Subject Field */}
+                        <FormField
+                          control={form.control}
+                          name="subject"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email Subject</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter email subject line..."
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                  data-testid="input-subject"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                The subject line that will appear in the email
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
