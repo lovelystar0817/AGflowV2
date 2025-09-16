@@ -47,6 +47,7 @@ export class NotificationJobService {
 
   /**
    * Process all pending notifications that are due to be sent
+   * 🔒 SECURITY: Now processes per stylist to ensure proper tenant isolation
    */
   private async processNotifications(): Promise<void> {
     if (this.isProcessing) {
@@ -60,39 +61,57 @@ export class NotificationJobService {
     try {
       console.log("Starting notification processing job...");
 
-      // Atomically claim pending notifications to prevent duplicate processing
-      const pendingNotifications = await storage.claimPendingNotifications(50);
+      // 🔒 CRITICAL SECURITY FIX: Get stylists with pending notifications first
+      const stylistsWithNotifications = await storage.getStylistsWithPendingNotifications();
 
-      if (pendingNotifications.length === 0) {
+      if (stylistsWithNotifications.length === 0) {
         console.log("No pending notifications to process");
         return;
       }
 
-      console.log(`Found ${pendingNotifications.length} pending notifications to process`);
+      console.log(`Found notifications for ${stylistsWithNotifications.length} stylist(s)`);
 
-      let successCount = 0;
-      let failureCount = 0;
+      let totalSuccessCount = 0;
+      let totalFailureCount = 0;
 
-      // Process each notification
-      for (const notification of pendingNotifications) {
+      // 🔒 SECURE: Process notifications per stylist to ensure tenant isolation
+      for (const stylistData of stylistsWithNotifications) {
+        const stylistId = stylistData.stylistId;
+        
         try {
-          await this.sendNotificationEmail(notification);
-          successCount++;
+          // Atomically claim pending notifications for this specific stylist
+          const pendingNotifications = await storage.claimPendingNotifications(stylistId, 50);
+
+          if (pendingNotifications.length === 0) {
+            continue; // Skip if no notifications for this stylist
+          }
+
+          console.log(`Processing ${pendingNotifications.length} notifications for stylistId: ${stylistId}`);
+
+          // Process each notification for this stylist
+          for (const notification of pendingNotifications) {
+            try {
+              await this.sendNotificationEmail(notification);
+              totalSuccessCount++;
+            } catch (error) {
+              console.error(`Failed to process notification ${notification.id} for stylist ${stylistId}:`, error);
+              totalFailureCount++;
+              
+              // Update notification status to failed with error message
+              await storage.updateNotificationStatus(
+                notification.id, 
+                'failed', 
+                error instanceof Error ? error.message : 'Unknown error occurred'
+              );
+            }
+          }
         } catch (error) {
-          console.error(`Failed to process notification ${notification.id}:`, error);
-          failureCount++;
-          
-          // Update notification status to failed with error message
-          await storage.updateNotificationStatus(
-            notification.id, 
-            'failed', 
-            error instanceof Error ? error.message : 'Unknown error occurred'
-          );
+          console.error(`Error processing notifications for stylist ${stylistId}:`, error);
         }
       }
 
       const duration = Date.now() - startTime;
-      console.log(`Notification processing completed in ${duration}ms - Success: ${successCount}, Failed: ${failureCount}`);
+      console.log(`Notification processing completed in ${duration}ms - Total Success: ${totalSuccessCount}, Total Failed: ${totalFailureCount}`);
 
     } catch (error) {
       console.error("Error in notification processing job:", error);
