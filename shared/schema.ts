@@ -423,6 +423,19 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
   createdAt: timestamp("created_at").defaultNow(),
 }); // Removed indexes for zero-drift
 
+// Notifications table for follow-up emails
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
+  message: text("message").notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  status: text("status").notNull().default("pending"), // 'pending' | 'sent' | 'failed'
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Frontend coupon delivery form schema
 export const couponDeliveryFormSchema = z.object({
   couponId: z.string().uuid("Invalid coupon ID"),
@@ -475,6 +488,18 @@ export const insertCouponDeliverySchema = createInsertSchema(couponDeliveries).o
 
 export type InsertCouponDelivery = z.infer<typeof insertCouponDeliverySchema>;
 export type CouponDelivery = typeof couponDeliveries.$inferSelect;
+
+// Notification schemas and types
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  sentAt: true,
+  status: true,
+  errorMessage: true,
+});
+
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
 
 // Helper functions for coupon management
 export function calculateCouponEndDate(startDate: string, duration: "2weeks" | "1month" | "3months"): string {
