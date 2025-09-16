@@ -666,7 +666,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Buttons Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           <Button 
             onClick={() => setActiveTab("calendar")}
             className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
@@ -725,18 +725,6 @@ export default function DashboardPage() {
           >
             <Sparkles className="h-6 w-6 text-purple-600" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Assistant</span>
-          </Button>
-          
-          <Button 
-            onClick={() => setActiveTab("reviews")}
-            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
-              activeTab === "reviews" ? "ring-2 ring-primary bg-primary/5" : ""
-            }`}
-            variant="outline"
-            data-testid="action-reviews"
-          >
-            <Star className="h-6 w-6 text-yellow-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Reviews</span>
           </Button>
           
           <Button 
@@ -1111,32 +1099,7 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Reviews Content */}
-          {activeTab === "reviews" && (
-            <Card className="rounded-2xl shadow-md border-0">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-card-foreground">Customer Reviews</h2>
-                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-testid="button-share-review-link">
-                    <Share className="mr-2 h-4 w-4" />
-                    Share Review Link
-                  </Button>
-                </div>
-                
-                <div className="bg-muted rounded-lg p-8 text-center">
-                  <div className="max-w-sm mx-auto">
-                    <div className="h-16 w-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Star className="h-8 w-8 text-yellow-500" />
-                    </div>
-                    <h3 className="text-lg font-medium text-card-foreground mb-2">Review System Coming Soon</h3>
-                    <p className="text-muted-foreground">Collect and manage customer reviews to build your reputation and improve services.</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* QR Code Content */}
+{/* QR Code Content */}
           {activeTab === "qr-code" && (
             <Card className="rounded-2xl shadow-md border-0">
               <div className="p-6">
