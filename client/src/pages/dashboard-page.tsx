@@ -666,7 +666,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Buttons Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 mb-8">
           <Button 
             onClick={() => setActiveTab("calendar")}
             className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
@@ -676,7 +676,31 @@ export default function DashboardPage() {
             data-testid="action-calendar"
           >
             <Calendar className="h-6 w-6 text-blue-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Calendar</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Calendar</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("clients")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "clients" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-clients"
+          >
+            <Users className="h-6 w-6 text-green-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Clients</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("services")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "services" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-services"
+          >
+            <Scissors className="h-6 w-6 text-pink-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Services</span>
           </Button>
           
           <Button 
@@ -687,8 +711,8 @@ export default function DashboardPage() {
             variant="outline"
             data-testid="action-coupons"
           >
-            <Ticket className="h-6 w-6 text-orange-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Send Coupon</span>
+            <Tags className="h-6 w-6 text-orange-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Coupons</span>
           </Button>
           
           <Button 
@@ -704,15 +728,27 @@ export default function DashboardPage() {
           </Button>
           
           <Button 
-            onClick={() => setActiveTab("clients")}
+            onClick={() => setActiveTab("reviews")}
             className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
-              activeTab === "clients" ? "ring-2 ring-primary bg-primary/5" : ""
+              activeTab === "reviews" ? "ring-2 ring-primary bg-primary/5" : ""
             }`}
             variant="outline"
-            data-testid="action-clients"
+            data-testid="action-reviews"
           >
-            <UserPlus className="h-6 w-6 text-green-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Add New Client</span>
+            <Star className="h-6 w-6 text-yellow-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Reviews</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("qr-code")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "qr-code" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-qr-code"
+          >
+            <QrCode className="h-6 w-6 text-indigo-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">QR Code</span>
           </Button>
         </div>
 
