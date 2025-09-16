@@ -621,6 +621,24 @@ export default function DashboardPage() {
             <p className="opacity-90">Here's what's happening with your business today.</p>
           </div>
           
+          {/* AI Assistant Section */}
+          <Card className="rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 shadow-md border-0 mt-6">
+            <CardContent className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
+                    <Sparkles className="h-6 w-6 text-purple-600 mr-2" />
+                    AI Assistant
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Use natural language to automate your business tasks. Tell the AI what you want to do and it will handle the rest.
+                  </p>
+                </div>
+                <AICommandBox />
+              </div>
+            </CardContent>
+          </Card>
+          
           {/* Today's Snapshot Card */}
           <TooltipProvider>
             <Card className="rounded-2xl bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-md border-0 mt-6">
@@ -666,7 +684,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Buttons Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
           <Button 
             onClick={() => setActiveTab("calendar")}
             className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
@@ -713,18 +731,6 @@ export default function DashboardPage() {
           >
             <Tags className="h-6 w-6 text-orange-600" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Coupons</span>
-          </Button>
-          
-          <Button 
-            onClick={() => setActiveTab("ai-assistant")}
-            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
-              activeTab === "ai-assistant" ? "ring-2 ring-primary bg-primary/5" : ""
-            }`}
-            variant="outline"
-            data-testid="action-ai-assistant"
-          >
-            <Sparkles className="h-6 w-6 text-purple-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Assistant</span>
           </Button>
           
           <Button 
