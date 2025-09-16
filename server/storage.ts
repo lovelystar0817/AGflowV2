@@ -69,7 +69,8 @@ export interface IStorage {
   // Notification management  
   createNotification(notification: InsertNotification): Promise<Notification>;
   getNotifications(stylistId: string): Promise<Notification[]>;
-  updateNotificationStatus(id: string, status: 'sent' | 'failed', errorMessage?: string): Promise<void>;
+  claimPendingNotifications(limit: number): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]>;
+  updateNotificationStatus(id: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void>;
   
   // Analytics
   getAnalytics(stylistId: string, period: 'week' | 'month'): Promise<{
@@ -77,6 +78,7 @@ export interface IStorage {
     revenue: number;
     topServices: { serviceName: string; count: number; revenue: number }[];
     busyDays: { date: string; appointmentCount: number }[];
+    loyalClients: { clientId: string; fullName: string; totalVisits: number }[];
   }>;
   
   // Slot suggestions
@@ -898,13 +900,84 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(notifications).where(eq(notifications.stylistId, stylistId));
   }
 
-  async updateNotificationStatus(id: string, status: 'sent' | 'failed', errorMessage?: string): Promise<void> {
+  /**
+   * Atomically claim pending notifications for processing to prevent duplicate sends
+   * This method uses SELECT FOR UPDATE SKIP LOCKED for safe concurrency
+   */
+  async claimPendingNotifications(limit: number = 50): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]> {
+    const now = new Date();
+    
+    // Use a transaction to atomically claim notifications
+    return await db.transaction(async (tx) => {
+      // First, find notifications ready to process using FOR UPDATE SKIP LOCKED
+      const notificationIds = await tx
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.status, 'pending'),
+            sql`${notifications.scheduledAt} <= ${now}`
+          )
+        )
+        .orderBy(notifications.scheduledAt)
+        .limit(limit)
+        .for('update', { skipLocked: true });
+      
+      if (notificationIds.length === 0) {
+        return [];
+      }
+      
+      const ids = notificationIds.map(n => n.id);
+      
+      // Mark them as processing
+      await tx
+        .update(notifications)
+        .set({ 
+          status: 'processing',
+          sentAt: new Date() // Track when processing started
+        })
+        .where(sql`${notifications.id} = ANY(${ids})`);
+      
+      // Return the claimed notifications with full details
+      const claimedNotifications = await tx
+        .select({
+          id: notifications.id,
+          stylistId: notifications.stylistId,
+          clientId: notifications.clientId,
+          type: notifications.type,
+          subject: notifications.subject,
+          message: notifications.message,
+          scheduledAt: notifications.scheduledAt,
+          sentAt: notifications.sentAt,
+          status: notifications.status,
+          errorMessage: notifications.errorMessage,
+          createdAt: notifications.createdAt,
+          clientEmail: clients.email,
+          stylistFirstName: stylists.firstName,
+          stylistLastName: stylists.lastName,
+        })
+        .from(notifications)
+        .leftJoin(clients, eq(notifications.clientId, clients.id))
+        .leftJoin(stylists, eq(notifications.stylistId, stylists.id))
+        .where(sql`${notifications.id} = ANY(${ids})`);
+      
+      return claimedNotifications;
+    });
+  }
+
+  async updateNotificationStatus(id: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void> {
+    const updateData: any = { 
+      status,
+      errorMessage: errorMessage || null
+    };
+    
+    // Only update sentAt for final statuses (sent/failed), not for processing
+    if (status === 'sent' || status === 'failed') {
+      updateData.sentAt = new Date();
+    }
+    
     await db.update(notifications)
-      .set({ 
-        status, 
-        sentAt: new Date(),
-        errorMessage 
-      })
+      .set(updateData)
       .where(eq(notifications.id, id));
   }
 
@@ -914,6 +987,7 @@ export class DatabaseStorage implements IStorage {
     revenue: number;
     topServices: { serviceName: string; count: number; revenue: number }[];
     busyDays: { date: string; appointmentCount: number }[];
+    loyalClients: { clientId: string; fullName: string; totalVisits: number }[];
   }> {
     const daysBack = period === 'week' ? 7 : 30;
     const startDate = new Date();
@@ -972,6 +1046,26 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`count(*) desc`)
       .limit(10);
 
+    // Get loyal clients (clients with the most visits in the period)
+    const loyalClients = await db
+      .select({
+        clientId: clients.id,
+        fullName: sql<string>`COALESCE(${clients.firstName} || ' ' || ${clients.lastName}, ${clients.firstName}, ${clients.lastName}, 'Unknown')`,
+        totalVisits: sql<number>`count(*)`
+      })
+      .from(appointments)
+      .innerJoin(clients, eq(appointments.clientId, clients.id))
+      .where(
+        and(
+          eq(appointments.stylistId, stylistId),
+          eq(appointments.status, 'completed'),
+          sql`${appointments.date} >= ${startDateStr}`
+        )
+      )
+      .groupBy(clients.id, clients.firstName, clients.lastName)
+      .orderBy(sql`count(*) desc`)
+      .limit(10);
+
     return {
       appointmentCount: appointmentStats[0]?.count || 0,
       revenue: Number(appointmentStats[0]?.revenue || 0),
@@ -983,6 +1077,11 @@ export class DatabaseStorage implements IStorage {
       busyDays: busyDays.map(d => ({
         date: d.date,
         appointmentCount: d.appointmentCount
+      })),
+      loyalClients: loyalClients.map(c => ({
+        clientId: c.clientId,
+        fullName: c.fullName,
+        totalVisits: c.totalVisits
       }))
     };
   }

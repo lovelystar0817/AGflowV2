@@ -6,6 +6,7 @@ import { storage } from "./storage-instance";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand } from "./openai-service";
+import { getNotificationJobService } from "./notification-job";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rate limiting for auth endpoints
@@ -1345,6 +1346,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  // REMOVED: Notification job control endpoints were removed for security
+  // These endpoints exposed system-wide data and controls to any authenticated user
+  // Notification job processing happens automatically in the background
 
   const httpServer = createServer(app);
 

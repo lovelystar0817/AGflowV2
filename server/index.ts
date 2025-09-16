@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { getNotificationJobService } from "./notification-job";
 
 const app = express();
 app.use(express.json());
@@ -67,5 +68,10 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start the notification job service for background email processing
+    const notificationJobService = getNotificationJobService();
+    notificationJobService.start();
+    log("Notification job service started - processing notifications every hour");
   });
 })();
