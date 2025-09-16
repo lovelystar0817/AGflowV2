@@ -69,7 +69,8 @@ export interface IStorage {
   // Notification management  
   createNotification(notification: InsertNotification): Promise<Notification>;
   getNotifications(stylistId: string): Promise<Notification[]>;
-  claimPendingNotifications(limit: number): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]>;
+  getStylistsWithPendingNotifications(): Promise<{ stylistId: string }[]>;
+  claimPendingNotifications(stylistId: string, limit?: number): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]>;
   updateNotificationStatus(id: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void>;
   
   // Analytics
@@ -901,22 +902,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Atomically claim pending notifications for processing to prevent duplicate sends
-   * This method uses SELECT FOR UPDATE SKIP LOCKED for safe concurrency
+   * Get all stylists who have pending notifications ready to be sent
    */
-  async claimPendingNotifications(limit: number = 50): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]> {
+  async getStylistsWithPendingNotifications(): Promise<{ stylistId: string }[]> {
+    const now = new Date();
+    
+    return await db
+      .select({ stylistId: notifications.stylistId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.status, 'pending'),
+          sql`${notifications.scheduledAt} <= ${now}`
+        )
+      )
+      .groupBy(notifications.stylistId);
+  }
+
+  /**
+   * Atomically claim pending notifications for a specific stylist
+   * This method uses SELECT FOR UPDATE SKIP LOCKED for safe concurrency
+   * 🔒 SECURITY: Now properly scoped by stylistId to prevent cross-tenant data leakage
+   */
+  async claimPendingNotifications(stylistId: string, limit: number = 50): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]> {
     const now = new Date();
     
     // Use a transaction to atomically claim notifications
     return await db.transaction(async (tx) => {
       // First, find notifications ready to process using FOR UPDATE SKIP LOCKED
+      // 🔒 CRITICAL: Added stylistId filter for proper tenant isolation
       const notificationIds = await tx
         .select({ id: notifications.id })
         .from(notifications)
         .where(
           and(
             eq(notifications.status, 'pending'),
-            sql`${notifications.scheduledAt} <= ${now}`
+            sql`${notifications.scheduledAt} <= ${now}`,
+            eq(notifications.stylistId, stylistId)
           )
         )
         .orderBy(notifications.scheduledAt)

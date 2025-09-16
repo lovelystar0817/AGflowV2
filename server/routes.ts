@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage-instance";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
@@ -28,7 +28,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     legacyHeaders: false,
     keyGenerator: (req) => {
       // Rate limit by both IP and user ID for authenticated users
-      return req.user ? `${req.ip}-${req.user.id}` : req.ip || 'unknown';
+      // Use proper IPv6-safe IP key generation
+      const baseKey = req.ip || req.socket.remoteAddress || 'unknown';
+      return req.user ? `${baseKey}-${req.user.id}` : baseKey;
     },
   });
 
@@ -1122,7 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Parse command using OpenAI
-      console.log(`Processing AI command: "${command.trim()}" for stylist ${stylist.businessName}`);
+      console.log(`Processing AI command for stylistId: ${stylist.id}`);
       const aiResponse = await parseAICommand(command.trim(), stylist);
 
       if (aiResponse.action === "unknown") {
@@ -1386,7 +1388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Parse command using OpenAI
-      console.log(`Processing AI scheduling command: "${command.trim()}" for stylist ${stylist.businessName}`);
+      console.log(`Processing AI scheduling command for stylistId: ${stylist.id}`);
       const aiResponse = await parseSchedulingCommand(command.trim(), stylist);
 
       if (aiResponse.action === "unknown") {
