@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand } from "./openai-service";
 
@@ -1217,6 +1217,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
     }
   }
+
+  // POST /api/ai/schedule-reminder - Schedule a follow-up reminder
+  app.post("/api/ai/schedule-reminder", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const validation = insertNotificationSchema.safeParse({
+        ...req.body,
+        stylistId: req.user.id,
+      });
+
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid notification data", 
+          details: validation.error.errors 
+        });
+      }
+
+      // SECURITY FIX: Validate that clientId belongs to the authenticated stylist
+      const client = await storage.getClient(validation.data.clientId);
+      if (!client || client.stylistId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied: Client does not belong to this stylist" });
+      }
+
+      // VALIDATION FIX: Ensure scheduledAt is in the future
+      const scheduledDate = new Date(validation.data.scheduledAt);
+      const now = new Date();
+      if (scheduledDate <= now) {
+        return res.status(400).json({ error: "scheduledAt must be in the future" });
+      }
+
+      const notification = await storage.createNotification(validation.data);
+      res.status(201).json(notification);
+    } catch (error) {
+      console.error("Error creating reminder:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/ai/analytics - Get business analytics for specified period
+  app.get("/api/ai/analytics", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { period } = req.query;
+      
+      if (!period || (period !== 'week' && period !== 'month')) {
+        return res.status(400).json({ 
+          error: "Invalid period parameter. Must be 'week' or 'month'" 
+        });
+      }
+
+      const analytics = await storage.getAnalytics(req.user.id, period as 'week' | 'month');
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/ai/suggest-slots - Get suggested appointment slots for a service
+  app.get("/api/ai/suggest-slots", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { serviceId, days } = req.query;
+      
+      if (!serviceId || !days) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: serviceId, days" 
+        });
+      }
+
+      const serviceIdNum = parseInt(serviceId as string);
+      const daysNum = parseInt(days as string);
+
+      if (isNaN(serviceIdNum) || isNaN(daysNum) || daysNum < 1 || daysNum > 30) {
+        return res.status(400).json({ 
+          error: "Invalid parameters. serviceId must be a number, days must be 1-30" 
+        });
+      }
+
+      const suggestions = await storage.getSuggestedSlots(req.user.id, serviceIdNum, daysNum);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error fetching slot suggestions:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
   const httpServer = createServer(app);
 
