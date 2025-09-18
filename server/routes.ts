@@ -3,11 +3,13 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage-instance";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand } from "./openai-service";
 import { findBestClientMatch, findBestServiceMatch, checkAppointmentConflicts, checkAvailability, calculateEndTime, isWithinBusinessHours } from "./scheduling-utils";
 import { getNotificationJobService } from "./notification-job";
+import { db } from "./db";
+import { and, eq } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rate limiting for auth endpoints
@@ -727,20 +729,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user) {
         return res.status(401).json({ error: "Unauthorized" });
       }
-      
+
       const validation = insertCouponSchema.safeParse({
         ...req.body,
         stylistId: req.user.id,
       });
-      
+
       if (!validation.success) {
         return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
       }
-      
+
       const coupon = await storage.createCoupon(validation.data);
       res.status(201).json(coupon);
     } catch (error) {
       console.error("Error creating coupon:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/coupons/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const updateSchema = z.object({
+        discountType: z.enum(["percent", "flat"], { required_error: "discountType is required" }),
+        discountValue: z
+          .union([z.string(), z.number()])
+          .refine((value) => {
+            const numericValue = typeof value === "number" ? value : Number.parseFloat(value);
+            return Number.isFinite(numericValue) && numericValue > 0;
+          }, "discountValue must be a positive number")
+          .transform((value) => {
+            const numericValue = typeof value === "number" ? value : Number.parseFloat(value);
+            return numericValue.toString();
+          }),
+        conditions: z.union([z.string().max(500), z.null()]).optional(),
+        expiration: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+      });
+
+      const validation = updateSchema.safeParse(req.body);
+
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
+      }
+
+      const { discountType, discountValue, conditions, expiration } = validation.data;
+      const updatePayload: Record<string, unknown> = {
+        discountType,
+        discountValue,
+        expiration,
+      };
+
+      if (typeof conditions !== "undefined") {
+        updatePayload.conditions = conditions;
+      }
+
+      const [updatedCoupon] = await db
+        .update(coupons)
+        .set(updatePayload as any)
+        .where(and(eq(coupons.id, req.params.id), eq(coupons.stylistId, req.user.id)))
+        .returning();
+
+      if (!updatedCoupon) {
+        return res.status(404).json({ error: "Coupon not found" });
+      }
+
+      res.json(updatedCoupon);
+    } catch (error) {
+      console.error("Error updating coupon via PUT:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
