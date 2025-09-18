@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
 import QRCodeSection from "@/components/qr-code-section";
+import { EditCouponModal, type CouponForEditing } from "@/components/EditCouponModal";
 import { isProfileComplete, serviceFormSchema, type StylistService, type Client, type Coupon } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -134,6 +135,8 @@ export default function DashboardPage() {
   const [editingService, setEditingService] = useState<StylistService | null>(null);
   const [isServiceDialogOpen, setIsServiceDialogOpen] = useState(false);
   const [deleteServiceId, setDeleteServiceId] = useState<number | null>(null);
+  const [editingCoupon, setEditingCoupon] = useState<CouponForEditing | null>(null);
+  const [isEditCouponModalOpen, setIsEditCouponModalOpen] = useState(false);
 
   // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -394,6 +397,37 @@ export default function DashboardPage() {
     if (deleteServiceId) {
       deleteServiceMutation.mutate(deleteServiceId);
     }
+  };
+
+  const mapCouponToEditable = (coupon: Coupon): CouponForEditing => {
+    const rawDiscountType = (coupon as unknown as { discountType?: string }).discountType;
+    const rawDiscountValue = (coupon as unknown as { discountValue?: string | number }).discountValue;
+    const rawConditions = (coupon as unknown as { conditions?: string }).conditions;
+    const rawExpiration = (coupon as unknown as { expiration?: string }).expiration;
+
+    return {
+      id: coupon.id,
+      discountType: (rawDiscountType ?? coupon.type) as "percent" | "flat",
+      discountValue: rawDiscountValue !== undefined && rawDiscountValue !== null
+        ? rawDiscountValue.toString()
+        : (coupon.amount ?? "").toString(),
+      conditions: rawConditions ?? "",
+      expiration: rawExpiration ?? coupon.endDate ?? "",
+    };
+  };
+
+  const handleEditCoupon = (coupon: Coupon) => {
+    setEditingCoupon(mapCouponToEditable(coupon));
+    setIsEditCouponModalOpen(true);
+  };
+
+  const handleCouponModalClose = () => {
+    setIsEditCouponModalOpen(false);
+    setEditingCoupon(null);
+  };
+
+  const handleCouponSaved = (_updatedCoupon: Coupon) => {
+    queryClient.invalidateQueries({ queryKey: ["/api/coupons"] });
   };
 
   const handleLogout = () => {
@@ -1045,13 +1079,7 @@ export default function DashboardPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => {
-                                    // TODO: Add edit functionality in future
-                                    toast({
-                                      title: "Edit coupon",
-                                      description: "Edit functionality coming soon!",
-                                    });
-                                  }}
+                                  onClick={() => handleEditCoupon(coupon)}
                                   data-testid={`button-edit-coupon-${coupon.id}`}
                                 >
                                   <Edit className="h-4 w-4" />
@@ -1114,6 +1142,14 @@ export default function DashboardPage() {
             </Card>
           )}
         </div>
+
+        {editingCoupon && isEditCouponModalOpen && (
+          <EditCouponModal
+            coupon={editingCoupon}
+            onClose={handleCouponModalClose}
+            onSave={handleCouponSaved}
+          />
+        )}
 
         {/* Service Management Dialog */}
         <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
