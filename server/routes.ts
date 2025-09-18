@@ -749,26 +749,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/coupons/:id", async (req, res) => {
     try {
-      const { type, amount, name, serviceId, startDate, endDate } = req.body;
+      const { name, type, amount, serviceId, duration, startDate } = req.body;
 
       if (!["percent", "flat"].includes(type)) {
         return res.status(400).json({ error: "Invalid coupon type" });
       }
 
-      const normalizedAmount =
-        type === "percent"
-          ? parseInt(amount, 10).toString()    // whole number for percent
-          : parseFloat(amount).toString();     // decimal for flat amounts
-
       const updated = await db
         .update(coupons)
         .set({
-          type,
-          amount: normalizedAmount,
           name,
+          type,
+          amount,     // string is okay, DB will coerce to decimal
           serviceId: serviceId || null,
           startDate,
-          endDate,
+          endDate: calculateEndDate(startDate, duration), // helper
         })
         .where(eq(coupons.id, req.params.id))
         .returning();
@@ -783,6 +778,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to update coupon" });
     }
   });
+
+// helper function
+function calculateEndDate(startDate: string, duration: string) {
+  const start = new Date(startDate);
+  if (duration === "2weeks") start.setDate(start.getDate() + 14);
+  if (duration === "1month") start.setMonth(start.getMonth() + 1);
+  if (duration === "3months") start.setMonth(start.getMonth() + 3);
+  return start.toISOString().split("T")[0];
+}
 
   app.patch("/api/coupons/:id", async (req, res) => {
     try {
