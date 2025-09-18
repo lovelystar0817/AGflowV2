@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
   // Client management routes
-  app.get("/api/clients", async (req, res) => {
+  app.get("/api/clients", async (req, res, next) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "Unauthorized" });
@@ -59,8 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const clients = await storage.getClientsByStylist(req.user.id);
       res.json(clients);
     } catch (error) {
-      console.error("Error fetching clients:", error);
-      res.status(500).json({ error: "Internal server error" });
+      next(error); // Pass error to error handler middleware
     }
   });
 
