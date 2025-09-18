@@ -749,24 +749,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/coupons/:id", async (req, res) => {
     try {
-      const { discountType, discountValue, conditions, expiration } = req.body;
+      const { type, amount, name, serviceId, startDate, endDate } = req.body;
 
-      if (!["percent", "flat"].includes(discountType)) {
-        return res.status(400).json({ error: "Invalid discount type" });
+      if (!["percent", "flat"].includes(type)) {
+        return res.status(400).json({ error: "Invalid coupon type" });
       }
 
-      const normalizedValue =
-        discountType === "percent"
-          ? parseInt(discountValue, 10)    // enforce whole number for percent
-          : parseFloat(discountValue);     // allow decimals for flat
+      const normalizedAmount =
+        type === "percent"
+          ? parseInt(amount, 10)    // whole number for percent
+          : parseFloat(amount);     // decimal for flat amounts
 
       const updated = await db
         .update(coupons)
         .set({
-          discountType,
-          discountValue: normalizedValue,
-          conditions,
-          expiration,
+          type,
+          amount: normalizedAmount,
+          name,
+          serviceId: serviceId || null,
+          startDate,
+          endDate,
         })
         .where(eq(coupons.id, req.params.id))
         .returning();
@@ -777,7 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updated[0]);
     } catch (err) {
-      console.error(err);
+      console.error("Coupon update error:", err);
       res.status(500).json({ error: "Failed to update coupon" });
     }
   });
