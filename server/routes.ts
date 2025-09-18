@@ -757,8 +757,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const normalizedAmount =
         type === "percent"
-          ? parseInt(amount, 10)    // whole number for percent
-          : parseFloat(amount);     // decimal for flat amounts
+          ? parseInt(amount, 10).toString()    // whole number for percent
+          : parseFloat(amount).toString();     // decimal for flat amounts
 
       const updated = await db
         .update(coupons)

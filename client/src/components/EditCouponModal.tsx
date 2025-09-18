@@ -48,13 +48,15 @@ export function EditCouponModal({ coupon, onClose, onSave }: EditCouponModalProp
 
     try {
       const payload = {
-        discountType: formState.discountType,
-        discountValue:
+        type: formState.discountType,
+        amount:
           formState.discountType === "percent"
-            ? parseInt(formState.discountValue, 10)
-            : parseFloat(formState.discountValue),
-        conditions: formState.conditions.trim() || null,
-        expiration: formState.expiration,
+            ? parseInt(formState.discountValue, 10).toString()
+            : parseFloat(formState.discountValue).toString(),
+        name: "Discount", // Default name since not available in CouponForEditing
+        serviceId: null,   // Default to null since not available in CouponForEditing
+        startDate: new Date().toISOString().split("T")[0], // Default to today
+        endDate: formState.expiration,
       };
 
       const response = await apiRequest("PUT", `/api/coupons/${coupon.id}`, payload);
