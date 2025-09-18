@@ -749,57 +749,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/coupons/:id", async (req, res) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: "Unauthorized" });
+      const { discountType, discountValue, conditions, expiration } = req.body;
+
+      if (!["percent", "flat"].includes(discountType)) {
+        return res.status(400).json({ error: "Invalid discount type" });
       }
 
-      const updateSchema = z.object({
-        discountType: z.enum(["percent", "flat"], { required_error: "discountType is required" }),
-        discountValue: z
-          .union([z.string(), z.number()])
-          .refine((value) => {
-            const numericValue = typeof value === "number" ? value : Number.parseFloat(value);
-            return Number.isFinite(numericValue) && numericValue > 0;
-          }, "discountValue must be a positive number")
-          .transform((value) => {
-            const numericValue = typeof value === "number" ? value : Number.parseFloat(value);
-            return numericValue.toString();
-          }),
-        conditions: z.union([z.string().max(500), z.null()]).optional(),
-        expiration: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
-      });
+      const normalizedValue =
+        discountType === "percent"
+          ? parseInt(discountValue, 10)    // enforce whole number for percent
+          : parseFloat(discountValue);     // allow decimals for flat
 
-      const validation = updateSchema.safeParse(req.body);
-
-      if (!validation.success) {
-        return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
-      }
-
-      const { discountType, discountValue, conditions, expiration } = validation.data;
-      const updatePayload: Record<string, unknown> = {
-        discountType,
-        discountValue,
-        expiration,
-      };
-
-      if (typeof conditions !== "undefined") {
-        updatePayload.conditions = conditions;
-      }
-
-      const [updatedCoupon] = await db
+      const updated = await db
         .update(coupons)
-        .set(updatePayload as any)
-        .where(and(eq(coupons.id, req.params.id), eq(coupons.stylistId, req.user.id)))
+        .set({
+          discountType,
+          discountValue: normalizedValue,
+          conditions,
+          expiration,
+        })
+        .where(eq(coupons.id, req.params.id))
         .returning();
 
-      if (!updatedCoupon) {
+      if (!updated.length) {
         return res.status(404).json({ error: "Coupon not found" });
       }
 
-      res.json(updatedCoupon);
-    } catch (error) {
-      console.error("Error updating coupon via PUT:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.json(updated[0]);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update coupon" });
     }
   });
 
