@@ -22,7 +22,9 @@ class ResendEmailService {
     this.fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@yourapp.com';
 
     if (!apiKey) {
-      throw new Error('Missing Resend configuration. Please set RESEND_API_KEY environment variable.');
+      console.warn('RESEND_API_KEY not configured. Email notifications will be disabled.');
+      this.resend = null as any; // Will be handled in methods
+      return;
     }
 
     this.resend = new Resend(apiKey);
@@ -43,6 +45,15 @@ class ResendEmailService {
     isHtml: boolean = true
   ): Promise<EmailResult> {
     try {
+      // Check if email service is configured
+      if (!this.resend) {
+        console.warn(`Email service not configured - would have sent email to ${toEmail} with subject: ${subject}`);
+        return {
+          success: false,
+          error: 'Email service not configured. Please set RESEND_API_KEY environment variable.'
+        };
+      }
+
       // Basic email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(toEmail)) {

@@ -29,7 +29,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     keyGenerator: (req) => {
       // Rate limit by both IP and user ID for authenticated users
       // Use proper IPv6-safe IP key generation
-      const baseKey = req.ip || req.socket.remoteAddress || 'unknown';
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const baseKey = ipKeyGenerator(ip);
       return req.user ? `${baseKey}-${req.user.id}` : baseKey;
     },
   });
