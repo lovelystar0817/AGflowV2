@@ -49,8 +49,11 @@ export function EditCouponModal({ coupon, onClose, onSave }: EditCouponModalProp
     try {
       const payload = {
         discountType: formState.discountType,
-        discountValue: Number.parseFloat(formState.discountValue),
-        conditions: formState.conditions.trim() ? formState.conditions.trim() : null,
+        discountValue:
+          formState.discountType === "percent"
+            ? parseInt(formState.discountValue, 10)
+            : parseFloat(formState.discountValue),
+        conditions: formState.conditions.trim() || null,
         expiration: formState.expiration,
       };
 
