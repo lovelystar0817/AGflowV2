@@ -68,7 +68,7 @@ export interface IStorage {
   
   // Coupon delivery management
   getCouponDeliveries(couponId: string, stylistId: string): Promise<CouponDelivery[]>;
-  createCouponDelivery(delivery: InsertCouponDelivery): Promise<CouponDelivery>;
+  createCouponDelivery(delivery: InsertCouponDelivery, stylistId: string): Promise<CouponDelivery>;
   updateCouponDelivery(id: string, stylistId: string, updates: { sentAt?: Date }): Promise<CouponDelivery>;
   getClientVisitCount(stylistId: string, clientId: string): Promise<number>;
   
@@ -611,19 +611,25 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(couponDeliveries).where(eq(couponDeliveries.couponId, couponId));
   }
 
-  async createCouponDelivery(delivery: InsertCouponDelivery): Promise<CouponDelivery> {
+  async createCouponDelivery(delivery: InsertCouponDelivery, stylistId: string): Promise<CouponDelivery> {
+    // CRITICAL SECURITY: Validate that the coupon belongs to the requesting stylist
+    const coupon = await this.getCoupon(delivery.couponId, stylistId);
+    if (!coupon) {
+      throw new Error(`Coupon ${delivery.couponId} not found or does not belong to stylist ${stylistId}`);
+    }
+
     // First create the delivery record
     const [newDelivery] = await db.insert(couponDeliveries).values(delivery).returning();
     
     // Now send email messages to the targeted recipients
-    await this.processEmailDelivery(newDelivery);
+    await this.processEmailDelivery(newDelivery, stylistId);
     
     // Return the updated delivery record with current email status
     const [updatedDelivery] = await db.select().from(couponDeliveries).where(eq(couponDeliveries.id, newDelivery.id));
     return updatedDelivery || newDelivery;
   }
 
-  private async processEmailDelivery(delivery: CouponDelivery): Promise<void> {
+  private async processEmailDelivery(delivery: CouponDelivery, stylistId: string): Promise<void> {
     try {
       const resendEmailService = getResendEmailService();
       
@@ -633,6 +639,11 @@ export class DatabaseStorage implements IStorage {
       
       if (!coupon) {
         throw new Error(`Coupon not found: ${delivery.couponId}`);
+      }
+      
+      // DEFENSIVE SECURITY: Ensure coupon belongs to expected stylist
+      if (coupon.stylistId !== stylistId) {
+        throw new Error(`Coupon ${delivery.couponId} does not belong to stylist ${stylistId}`);
       }
       
       // Validate coupon is active and valid
@@ -821,6 +832,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCouponDelivery(id: string, stylistId: string, updates: { sentAt?: Date }): Promise<CouponDelivery> {
+    // SECURITY: Ensure the coupon delivery belongs to the stylist's coupon
     // First get the delivery and validate ownership through the coupon
     const [delivery] = await db
       .select({
