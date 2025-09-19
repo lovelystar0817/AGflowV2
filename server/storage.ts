@@ -36,10 +36,10 @@ export interface IStorage {
   
   // Client management
   getClientsByStylist(stylistId: string): Promise<Client[]>;
-  getClient(id: string): Promise<Client | undefined>;
+  getClient(id: string, stylistId: string): Promise<Client | undefined>;
   createClient(client: InsertClient): Promise<Client>;
-  updateClient(id: string, updates: Partial<InsertClient>): Promise<Client>;
-  deleteClient(id: string): Promise<void>;
+  updateClient(id: string, stylistId: string, updates: Partial<InsertClient>): Promise<Client>;
+  deleteClient(id: string, stylistId: string): Promise<void>;
   
   // Availability management
   getStylistAvailability(stylistId: string, date: string): Promise<StylistAvailability | undefined>;
@@ -238,8 +238,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(clients).where(eq(clients.stylistId, stylistId));
   }
 
-  async getClient(id: string): Promise<Client | undefined> {
-    const [client] = await db.select().from(clients).where(eq(clients.id, id));
+  async getClient(id: string, stylistId: string): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(
+      and(eq(clients.id, id), eq(clients.stylistId, stylistId))
+    );
     return client || undefined;
   }
 
@@ -248,17 +250,29 @@ export class DatabaseStorage implements IStorage {
     return client;
   }
 
-  async updateClient(id: string, updates: Partial<InsertClient>): Promise<Client> {
+  async updateClient(id: string, stylistId: string, updates: Partial<InsertClient>): Promise<Client> {
     const [client] = await db
       .update(clients)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(clients.id, id))
+      .where(and(eq(clients.id, id), eq(clients.stylistId, stylistId)))
       .returning();
+    
+    if (!client) {
+      throw new Error(`No client found with id ${id} for stylist ${stylistId}`);
+    }
+    
     return client;
   }
 
-  async deleteClient(id: string): Promise<void> {
-    await db.delete(clients).where(eq(clients.id, id));
+  async deleteClient(id: string, stylistId: string): Promise<void> {
+    const result = await db
+      .delete(clients)
+      .where(and(eq(clients.id, id), eq(clients.stylistId, stylistId)))
+      .returning({ id: clients.id });
+    
+    if (result.length === 0) {
+      throw new Error(`No client found with id ${id} for stylist ${stylistId}`);
+    }
   }
 
   // Availability management methods
