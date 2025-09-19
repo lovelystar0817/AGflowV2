@@ -67,9 +67,9 @@ export interface IStorage {
   getActiveCouponsCount(stylistId: string): Promise<number>;
   
   // Coupon delivery management
-  getCouponDeliveries(couponId: string, stylistId: string): Promise<CouponDelivery[]>;
-  createCouponDelivery(delivery: InsertCouponDelivery, stylistId: string): Promise<CouponDelivery>;
-  updateCouponDelivery(id: string, stylistId: string, updates: { sentAt?: Date }): Promise<CouponDelivery>;
+  getCouponDeliveries(couponId: string, req: Request): Promise<CouponDelivery[]>;
+  createCouponDelivery(delivery: InsertCouponDelivery, req: Request): Promise<CouponDelivery>;
+  updateCouponDelivery(id: string, req: Request, updates: { sentAt?: Date }): Promise<CouponDelivery>;
   getClientVisitCount(stylistId: string, clientId: string): Promise<number>;
   
   sessionStore: session.Store;
@@ -83,7 +83,7 @@ export interface IStorage {
   getNotifications(stylistId: string): Promise<Notification[]>;
   getStylistsWithPendingNotifications(): Promise<{ stylistId: string }[]>;
   claimPendingNotifications(stylistId: string, limit?: number): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]>;
-  updateNotificationStatus(id: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void>;
+  updateNotificationStatus(id: string, req: Request, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void>;
   
   // Analytics
   getAnalytics(stylistId: string, period: 'week' | 'month'): Promise<{
@@ -601,7 +601,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Coupon delivery management methods
-  async getCouponDeliveries(couponId: string, stylistId: string): Promise<CouponDelivery[]> {
+  async getCouponDeliveries(couponId: string, req: Request): Promise<CouponDelivery[]> {
+    const stylistId = getTenant(req);
+    
     // First validate that the coupon belongs to the stylist
     const coupon = await this.getCoupon(couponId, stylistId);
     if (!coupon) {
@@ -611,7 +613,9 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(couponDeliveries).where(eq(couponDeliveries.couponId, couponId));
   }
 
-  async createCouponDelivery(delivery: InsertCouponDelivery, stylistId: string): Promise<CouponDelivery> {
+  async createCouponDelivery(delivery: InsertCouponDelivery, req: Request): Promise<CouponDelivery> {
+    const stylistId = getTenant(req);
+    
     // CRITICAL SECURITY: Validate that the coupon belongs to the requesting stylist
     const coupon = await this.getCoupon(delivery.couponId, stylistId);
     if (!coupon) {
@@ -622,14 +626,15 @@ export class DatabaseStorage implements IStorage {
     const [newDelivery] = await db.insert(couponDeliveries).values(delivery).returning();
     
     // Now send email messages to the targeted recipients
-    await this.processEmailDelivery(newDelivery, stylistId);
+    await this.processEmailDelivery(newDelivery, req);
     
     // Return the updated delivery record with current email status
     const [updatedDelivery] = await db.select().from(couponDeliveries).where(eq(couponDeliveries.id, newDelivery.id));
     return updatedDelivery || newDelivery;
   }
 
-  private async processEmailDelivery(delivery: CouponDelivery, stylistId: string): Promise<void> {
+  private async processEmailDelivery(delivery: CouponDelivery, req: Request): Promise<void> {
+    const stylistId = getTenant(req);
     try {
       const resendEmailService = getResendEmailService();
       
@@ -831,7 +836,9 @@ export class DatabaseStorage implements IStorage {
     return filteredClients.filter((client): client is Client => client !== null);
   }
 
-  async updateCouponDelivery(id: string, stylistId: string, updates: { sentAt?: Date }): Promise<CouponDelivery> {
+  async updateCouponDelivery(id: string, req: Request, updates: { sentAt?: Date }): Promise<CouponDelivery> {
+    const stylistId = getTenant(req);
+    
     // SECURITY: Ensure the coupon delivery belongs to the stylist's coupon
     // First get the delivery and validate ownership through the coupon
     const [delivery] = await db
@@ -848,9 +855,9 @@ export class DatabaseStorage implements IStorage {
       })
       .from(couponDeliveries)
       .innerJoin(coupons, eq(couponDeliveries.couponId, coupons.id))
-      .where(eq(couponDeliveries.id, id));
+      .where(and(eq(couponDeliveries.id, id), eq(coupons.stylistId, stylistId)));
     
-    if (!delivery || delivery.stylistId !== stylistId) {
+    if (!delivery) {
       throw new Error(`No coupon delivery found with id ${id} for stylist ${stylistId}`);
     }
     
@@ -1083,7 +1090,9 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async updateNotificationStatus(id: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void> {
+  async updateNotificationStatus(id: string, req: Request, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void> {
+    const stylistId = getTenant(req);
+    
     const updateData: any = { 
       status,
       errorMessage: errorMessage || null
@@ -1094,9 +1103,15 @@ export class DatabaseStorage implements IStorage {
       updateData.sentAt = new Date();
     }
     
-    await db.update(notifications)
+    // CRITICAL SECURITY: Only update notifications that belong to the requesting stylist
+    const result = await db.update(notifications)
       .set(updateData)
-      .where(eq(notifications.id, id));
+      .where(and(eq(notifications.id, id), eq(notifications.stylistId, stylistId)))
+      .returning({ id: notifications.id });
+    
+    if (result.length === 0) {
+      throw new Error(`No notification found with id ${id} for stylist ${stylistId}`);
+    }
   }
 
   // Analytics methods
