@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
   // Client management routes
-  app.get("/api/clients", async (req, res) => {
+  app.get("/api/clients", async (req, res, next) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "Unauthorized" });
@@ -59,8 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const clients = await storage.getClientsByStylist(req.user.id);
       res.json(clients);
     } catch (error) {
-      console.error("Error fetching clients:", error);
-      res.status(500).json({ error: "Internal server error" });
+      next(error); // Pass error to error handler middleware
     }
   });
 
@@ -749,59 +748,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/coupons/:id", async (req, res) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: "Unauthorized" });
+      const { name, type, amount, serviceId, duration, startDate } = req.body;
+
+      if (!["percent", "flat"].includes(type)) {
+        return res.status(400).json({ error: "Invalid coupon type" });
       }
 
-      const updateSchema = z.object({
-        discountType: z.enum(["percent", "flat"], { required_error: "discountType is required" }),
-        discountValue: z
-          .union([z.string(), z.number()])
-          .refine((value) => {
-            const numericValue = typeof value === "number" ? value : Number.parseFloat(value);
-            return Number.isFinite(numericValue) && numericValue > 0;
-          }, "discountValue must be a positive number")
-          .transform((value) => {
-            const numericValue = typeof value === "number" ? value : Number.parseFloat(value);
-            return numericValue.toString();
-          }),
-        conditions: z.union([z.string().max(500), z.null()]).optional(),
-        expiration: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
-      });
-
-      const validation = updateSchema.safeParse(req.body);
-
-      if (!validation.success) {
-        return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
-      }
-
-      const { discountType, discountValue, conditions, expiration } = validation.data;
-      const updatePayload: Record<string, unknown> = {
-        discountType,
-        discountValue,
-        expiration,
-      };
-
-      if (typeof conditions !== "undefined") {
-        updatePayload.conditions = conditions;
-      }
-
-      const [updatedCoupon] = await db
+      const updated = await db
         .update(coupons)
-        .set(updatePayload as any)
-        .where(and(eq(coupons.id, req.params.id), eq(coupons.stylistId, req.user.id)))
+        .set({
+          name,
+          type,
+          amount,     // string is okay, DB will coerce to decimal
+          serviceId: serviceId || null,
+          startDate,
+          endDate: calculateEndDate(startDate, duration), // helper
+        })
+        .where(eq(coupons.id, req.params.id))
         .returning();
 
-      if (!updatedCoupon) {
+      if (!updated.length) {
         return res.status(404).json({ error: "Coupon not found" });
       }
 
-      res.json(updatedCoupon);
-    } catch (error) {
-      console.error("Error updating coupon via PUT:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.json(updated[0]);
+    } catch (err) {
+      console.error("Coupon update error:", err);
+      res.status(500).json({ error: "Failed to update coupon" });
     }
   });
+
+// helper function
+function calculateEndDate(startDate: string, duration: string) {
+  const start = new Date(startDate);
+  if (duration === "2weeks") start.setDate(start.getDate() + 14);
+  if (duration === "1month") start.setMonth(start.getMonth() + 1);
+  if (duration === "3months") start.setMonth(start.getMonth() + 3);
+  return start.toISOString().split("T")[0];
+}
 
   app.patch("/api/coupons/:id", async (req, res) => {
     try {

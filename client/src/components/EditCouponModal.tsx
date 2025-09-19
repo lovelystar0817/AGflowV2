@@ -27,18 +27,22 @@ export function EditCouponModal({ coupon, onClose, onSave }: EditCouponModalProp
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formState, setFormState] = useState({
+    name: "Discount",
     discountType: coupon.discountType,
     discountValue: coupon.discountValue,
     conditions: coupon.conditions ?? "",
     expiration: coupon.expiration,
+    duration: "1month",
   });
 
   useEffect(() => {
     setFormState({
+      name: "Discount",
       discountType: coupon.discountType,
       discountValue: coupon.discountValue,
       conditions: coupon.conditions ?? "",
       expiration: coupon.expiration,
+      duration: "1month",
     });
   }, [coupon]);
 
@@ -48,10 +52,12 @@ export function EditCouponModal({ coupon, onClose, onSave }: EditCouponModalProp
 
     try {
       const payload = {
-        discountType: formState.discountType,
-        discountValue: Number.parseFloat(formState.discountValue),
-        conditions: formState.conditions.trim() ? formState.conditions.trim() : null,
-        expiration: formState.expiration,
+        name: formState.name || coupon.name,
+        type: formState.discountType,
+        amount: formState.discountValue,
+        serviceId: coupon.serviceId || null,
+        duration: formState.duration || "1month",
+        startDate: coupon.startDate || new Date().toISOString().split("T")[0],
       };
 
       const response = await apiRequest("PUT", `/api/coupons/${coupon.id}`, payload);
@@ -156,6 +162,23 @@ export function EditCouponModal({ coupon, onClose, onSave }: EditCouponModalProp
               }
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Duration</Label>
+            <Select
+              value={formState.duration}
+              onValueChange={(val) => setFormState({ ...formState, duration: val })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select duration" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2weeks">2 Weeks</SelectItem>
+                <SelectItem value="1month">1 Month</SelectItem>
+                <SelectItem value="3months">3 Months</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex justify-end space-x-2 pt-2">

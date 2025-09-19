@@ -1,11 +1,24 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { v4 as uuidv4 } from "uuid";
+import pino from "pino";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { getNotificationJobService } from "./notification-job";
 
+// Initialize logger
+export const logger = pino();
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Request ID and logging middleware
+app.use((req: any, res, next) => {
+  req.requestId = uuidv4();
+  res.setHeader("x-request-id", req.requestId);
+  logger.info({ requestId: req.requestId, path: req.path }, "Request received");
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -40,12 +53,9 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+  app.use((err, req, res, next) => {
+    logger.error({ requestId: req.requestId, path: req.path, err }, "Unhandled error");
+    res.status(500).json({ error: "Internal error", requestId: req.requestId });
   });
 
   // importantly only setup vite in development and after
