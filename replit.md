@@ -56,7 +56,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Database
 - **Neon PostgreSQL**: Serverless PostgreSQL database with connection pooling
-- **Environment**: Requires `DATABASE_URL` environment variable
+- **Environment**: Requires `DB_URL` environment variable
 
 ## Authentication
 - **Session Management**: Requires `SESSION_SECRET` environment variable for secure sessions

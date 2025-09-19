@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { env } from "./db";
 
 interface EmailResult {
   success: boolean;
@@ -18,15 +19,8 @@ class ResendEmailService {
   private fromEmail: string;
 
   constructor() {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = env.RESEND_API_KEY;
     this.fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@yourapp.com';
-
-    if (!apiKey) {
-      console.warn('RESEND_API_KEY not configured. Email notifications will be disabled.');
-      this.resend = null as any; // Will be handled in methods
-      return;
-    }
-
     this.resend = new Resend(apiKey);
   }
 
