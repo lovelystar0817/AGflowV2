@@ -49,6 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
 
+
   // Client management routes
   app.get("/api/clients", async (req, res, next) => {
     try {
@@ -869,7 +870,7 @@ function calculateEndDate(startDate: string, duration: string) {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const deliveries = await storage.getCouponDeliveries(req.params.couponId, req.user.id);
+      const deliveries = await storage.getCouponDeliveries(req.params.couponId, req);
       res.json(deliveries);
     } catch (error) {
       console.error("Error fetching coupon deliveries:", error);
@@ -898,7 +899,7 @@ function calculateEndDate(startDate: string, duration: string) {
         return res.status(404).json({ error: "Coupon not found" });
       }
       
-      const delivery = await storage.createCouponDelivery(validation.data);
+      const delivery = await storage.createCouponDelivery(validation.data, req);
       res.status(201).json(delivery);
     } catch (error) {
       console.error("Error creating coupon delivery:", error);
@@ -925,7 +926,7 @@ function calculateEndDate(startDate: string, duration: string) {
         return res.status(400).json({ error: "Invalid delivery data", details: validation.error.errors });
       }
       
-      const updatedDelivery = await storage.updateCouponDelivery(req.params.id, req.user.id, validation.data);
+      const updatedDelivery = await storage.updateCouponDelivery(req.params.id, req, validation.data);
       res.json(updatedDelivery);
     } catch (error) {
       console.error("Error updating coupon delivery:", error);

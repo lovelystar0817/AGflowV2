@@ -604,13 +604,29 @@ export class DatabaseStorage implements IStorage {
   async getCouponDeliveries(couponId: string, req: Request): Promise<CouponDelivery[]> {
     const stylistId = getTenant(req);
     
-    // First validate that the coupon belongs to the stylist
-    const coupon = await this.getCoupon(couponId, stylistId);
-    if (!coupon) {
-      throw new Error(`No coupon found with id ${couponId} for stylist ${stylistId}`);
-    }
+    // Query with tenant filtering - join with coupons to filter by stylistId
+    const query = db
+      .select({
+        id: couponDeliveries.id,
+        couponId: couponDeliveries.couponId,
+        recipientType: couponDeliveries.recipientType,
+        clientIds: couponDeliveries.clientIds,
+        logicRule: couponDeliveries.logicRule,
+        message: couponDeliveries.message,
+        subject: couponDeliveries.subject,
+        emailStatus: couponDeliveries.emailStatus,
+        emailId: couponDeliveries.emailId,
+        emailError: couponDeliveries.emailError,
+        deliveredAt: couponDeliveries.deliveredAt,
+        scheduledAt: couponDeliveries.scheduledAt,
+        sentAt: couponDeliveries.sentAt,
+        createdAt: couponDeliveries.createdAt,
+      })
+      .from(couponDeliveries)
+      .innerJoin(coupons, eq(couponDeliveries.couponId, coupons.id))
+      .where(and(eq(coupons.id, couponId), eq(coupons.stylistId, stylistId)));
     
-    return await db.select().from(couponDeliveries).where(eq(couponDeliveries.couponId, couponId));
+    return await query;
   }
 
   async createCouponDelivery(delivery: InsertCouponDelivery, req: Request): Promise<CouponDelivery> {
@@ -638,8 +654,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const resendEmailService = getResendEmailService();
       
-      // Get the coupon details for the message
-      const [couponResult] = await db.select().from(coupons).where(eq(coupons.id, delivery.couponId));
+      // Get the coupon details for the message with tenant filtering
+      const couponQuery = db.select().from(coupons).where(and(eq(coupons.id, delivery.couponId), eq(coupons.stylistId, stylistId)));
+      
+      const [couponResult] = await couponQuery;
       const coupon = couponResult;
       
       if (!coupon) {
