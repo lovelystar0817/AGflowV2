@@ -638,6 +638,30 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Coupon ${delivery.couponId} not found or does not belong to stylist ${stylistId}`);
     }
 
+    // Check for duplicate client IDs before inserting
+    if (delivery.clientIds && delivery.clientIds.length > 0) {
+      // Query existing deliveries for the same coupon with tenant filtering
+      const existingDeliveries = await db
+        .select({
+          id: couponDeliveries.id,
+          clientIds: couponDeliveries.clientIds,
+        })
+        .from(couponDeliveries)
+        .innerJoin(coupons, eq(couponDeliveries.couponId, coupons.id))
+        .where(and(eq(coupons.id, delivery.couponId), eq(coupons.stylistId, stylistId)));
+
+      // Check if any client ID in the new delivery already exists in previous deliveries
+      const newClientIds = delivery.clientIds;
+      for (const existingDelivery of existingDeliveries) {
+        const existingClientIds = existingDelivery.clientIds as string[] || [];
+        for (const newClientId of newClientIds) {
+          if (existingClientIds.includes(newClientId)) {
+            throw new Error(`Client ${newClientId} has already received this coupon. Duplicate deliveries are not allowed.`);
+          }
+        }
+      }
+    }
+
     // First create the delivery record
     const [newDelivery] = await db.insert(couponDeliveries).values(delivery).returning();
     
