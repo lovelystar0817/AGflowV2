@@ -383,8 +383,17 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(stylistServices, eq(appointments.serviceId, stylistServices.id));
 
     const result = date 
-      ? await baseQuery.where(and(eq(appointments.stylistId, stylistId), eq(appointments.date, date))).orderBy(appointments.startTime)
-      : await baseQuery.where(eq(appointments.stylistId, stylistId)).orderBy(appointments.startTime);
+      ? await baseQuery.where(and(
+          eq(appointments.stylistId, stylistId), 
+          eq(appointments.date, date),
+          eq(clients.stylistId, stylistId),
+          eq(stylistServices.stylistId, stylistId)
+        )).orderBy(appointments.startTime)
+      : await baseQuery.where(and(
+          eq(appointments.stylistId, stylistId),
+          eq(clients.stylistId, stylistId),
+          eq(stylistServices.stylistId, stylistId)
+        )).orderBy(appointments.startTime);
 
     // Transform the result to include full name
     return result.map(row => ({
@@ -404,11 +413,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
+    // Validate that client and service belong to the same stylist for security
+    const client = await this.getClient(appointment.clientId, appointment.stylistId);
+    if (!client) {
+      throw new Error(`Client ${appointment.clientId} not found or does not belong to stylist ${appointment.stylistId}`);
+    }
+
+    const [service] = await db.select().from(stylistServices)
+      .where(and(eq(stylistServices.id, appointment.serviceId), eq(stylistServices.stylistId, appointment.stylistId)));
+    if (!service) {
+      throw new Error(`Service ${appointment.serviceId} not found or does not belong to stylist ${appointment.stylistId}`);
+    }
+
     const [newAppointment] = await db.insert(appointments).values(appointment).returning();
     return newAppointment;
   }
 
   async updateAppointment(id: string, stylistId: string, updates: Partial<InsertAppointment>): Promise<Appointment> {
+    // Validate that any updated client and service belong to the same stylist for security
+    if (updates.clientId) {
+      const client = await this.getClient(updates.clientId, stylistId);
+      if (!client) {
+        throw new Error(`Client ${updates.clientId} not found or does not belong to stylist ${stylistId}`);
+      }
+    }
+
+    if (updates.serviceId) {
+      const [service] = await db.select().from(stylistServices)
+        .where(and(eq(stylistServices.id, updates.serviceId), eq(stylistServices.stylistId, stylistId)));
+      if (!service) {
+        throw new Error(`Service ${updates.serviceId} not found or does not belong to stylist ${stylistId}`);
+      }
+    }
+
     const [updatedAppointment] = await db
       .update(appointments)
       .set({ ...updates, updatedAt: new Date() })
