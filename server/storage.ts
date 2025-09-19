@@ -30,8 +30,8 @@ export interface IStorage {
   // Service management
   getStylistServices(stylistId: string): Promise<StylistService[]>;
   createStylistService(service: InsertStylistService): Promise<StylistService>;
-  updateStylistService(id: number, updates: Partial<InsertStylistService>): Promise<StylistService>;
-  deleteStylistService(id: number): Promise<void>;
+  updateStylistService(id: number, stylistId: string, updates: Partial<InsertStylistService>): Promise<StylistService>;
+  deleteStylistService(id: number, stylistId: string): Promise<void>;
   replaceStylistServices(stylistId: string, services: Omit<InsertStylistService, 'stylistId'>[]): Promise<StylistService[]>;
   
   // Client management
@@ -49,10 +49,10 @@ export interface IStorage {
   // Appointment management
   getAppointmentsByStylist(stylistId: string, date?: string): Promise<Appointment[]>;
   getAppointmentsWithDetails(stylistId: string, date?: string): Promise<any[]>;
-  getAppointment(id: string): Promise<Appointment | undefined>;
+  getAppointment(id: string, stylistId: string): Promise<Appointment | undefined>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
-  updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment>;
-  deleteAppointment(id: string): Promise<void>;
+  updateAppointment(id: string, stylistId: string, updates: Partial<InsertAppointment>): Promise<Appointment>;
+  deleteAppointment(id: string, stylistId: string): Promise<void>;
   
   // Slot management
   getAvailableSlots(stylistId: string, date: string): Promise<string[]>;
@@ -203,17 +203,29 @@ export class DatabaseStorage implements IStorage {
     return newService;
   }
 
-  async updateStylistService(id: number, updates: Partial<InsertStylistService>): Promise<StylistService> {
+  async updateStylistService(id: number, stylistId: string, updates: Partial<InsertStylistService>): Promise<StylistService> {
     const [updatedService] = await db
       .update(stylistServices)
       .set(updates)
-      .where(eq(stylistServices.id, id))
+      .where(and(eq(stylistServices.id, id), eq(stylistServices.stylistId, stylistId)))
       .returning();
+    
+    if (!updatedService) {
+      throw new Error(`No service found with id ${id} for stylist ${stylistId}`);
+    }
+    
     return updatedService;
   }
 
-  async deleteStylistService(id: number): Promise<void> {
-    await db.delete(stylistServices).where(eq(stylistServices.id, id));
+  async deleteStylistService(id: number, stylistId: string): Promise<void> {
+    const result = await db
+      .delete(stylistServices)
+      .where(and(eq(stylistServices.id, id), eq(stylistServices.stylistId, stylistId)))
+      .returning({ id: stylistServices.id });
+    
+    if (result.length === 0) {
+      throw new Error(`No service found with id ${id} for stylist ${stylistId}`);
+    }
   }
 
   async replaceStylistServices(stylistId: string, services: Omit<InsertStylistService, 'stylistId'>[]): Promise<StylistService[]> {
@@ -384,8 +396,10 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getAppointment(id: string): Promise<Appointment | undefined> {
-    const [appointment] = await db.select().from(appointments).where(eq(appointments.id, id));
+  async getAppointment(id: string, stylistId: string): Promise<Appointment | undefined> {
+    const [appointment] = await db.select().from(appointments).where(
+      and(eq(appointments.id, id), eq(appointments.stylistId, stylistId))
+    );
     return appointment || undefined;
   }
 
@@ -394,22 +408,29 @@ export class DatabaseStorage implements IStorage {
     return newAppointment;
   }
 
-  async updateAppointment(id: string, updates: Partial<InsertAppointment>): Promise<Appointment> {
+  async updateAppointment(id: string, stylistId: string, updates: Partial<InsertAppointment>): Promise<Appointment> {
     const [updatedAppointment] = await db
       .update(appointments)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(appointments.id, id))
+      .where(and(eq(appointments.id, id), eq(appointments.stylistId, stylistId)))
       .returning();
     
     if (!updatedAppointment) {
-      throw new Error(`No appointment found with id ${id}`);
+      throw new Error(`No appointment found with id ${id} for stylist ${stylistId}`);
     }
     
     return updatedAppointment;
   }
 
-  async deleteAppointment(id: string): Promise<void> {
-    await db.delete(appointments).where(eq(appointments.id, id));
+  async deleteAppointment(id: string, stylistId: string): Promise<void> {
+    const result = await db
+      .delete(appointments)
+      .where(and(eq(appointments.id, id), eq(appointments.stylistId, stylistId)))
+      .returning({ id: appointments.id });
+    
+    if (result.length === 0) {
+      throw new Error(`No appointment found with id ${id} for stylist ${stylistId}`);
+    }
   }
 
   // Slot management methods
@@ -710,7 +731,7 @@ export class DatabaseStorage implements IStorage {
         
         const customClients = await Promise.all(
           delivery.clientIds.map(async (clientId) => {
-            const client = await this.getClient(clientId);
+            const client = await this.getClient(clientId, stylistId);
             if (!client) {
               console.warn(`Client not found: ${clientId}`);
               return null;
@@ -870,7 +891,7 @@ export class DatabaseStorage implements IStorage {
       // Get client details to check opt-in status
       const clientsWithOptIn = await Promise.all(
         inactiveClients.map(async (clientData) => {
-          const client = await this.getClient(clientData.clientId);
+          const client = await this.getClient(clientData.clientId, stylistId);
           if (client && client.optInMarketing) {
             return {
               clientId: clientData.clientId,
@@ -890,7 +911,7 @@ export class DatabaseStorage implements IStorage {
     // For all clients, get their email addresses
     const clientsWithEmail = await Promise.all(
       inactiveClients.map(async (clientData) => {
-        const client = await this.getClient(clientData.clientId);
+        const client = await this.getClient(clientData.clientId, stylistId);
         return {
           clientId: clientData.clientId,
           fullName: clientData.fullName,

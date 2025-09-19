@@ -7,9 +7,9 @@ import * as schema from "@shared/schema";
 neonConfig.webSocketConstructor = ws;
 
 const envSchema = z.object({
-  DB_URL: z.string().url(),
+  DATABASE_URL: z.string().url(),
   RESEND_API_KEY: z.string().min(1),
-  OPENAI_KEY: z.string().min(1),
+  OPENAI_API_KEY: z.string().min(1),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -20,5 +20,5 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 
-export const pool = new Pool({ connectionString: env.DB_URL });
+export const pool = new Pool({ connectionString: env.DATABASE_URL });
 export const db = drizzle({ client: pool, schema });
