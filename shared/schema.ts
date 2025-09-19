@@ -200,7 +200,9 @@ export const clients = pgTable("clients", {
   optInMarketing: boolean("opt_in_marketing").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  stylistIndex: index("clients_stylist_id_idx").on(table.stylistId),
+}));
 
 export const insertClientSchema = createInsertSchema(clients).omit({
   id: true,
@@ -286,6 +288,7 @@ export const appointments = pgTable("appointments", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   stylistDateTimeUnique: uniqueIndex("appointments_u_stylist_date_time").on(table.stylistId, table.date, table.startTime),
+  stylistDateIndex: index("appointments_stylist_date_idx").on(table.stylistId, table.date),
 }));
 
 // Appointment validation schema
@@ -340,7 +343,9 @@ export const coupons = pgTable("coupons", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-}); // Removed constraints and indexes for zero-drift
+}, (table) => ({
+  stylistIndex: index("coupons_stylist_id_idx").on(table.stylistId),
+}));
 
 // Frontend coupon form schema (includes duration helper)
 export const couponFormSchema = z.object({
@@ -421,7 +426,9 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
   scheduledAt: timestamp("scheduled_at").defaultNow(),  // Default to now for "send now" functionality
   sentAt: timestamp("sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
-}); // Removed indexes for zero-drift
+}, (table) => ({
+  couponIndex: index("coupon_deliveries_coupon_id_idx").on(table.couponId),
+})); // Removed indexes for zero-drift
 
 // Enum for notification types
 export const notificationTypeEnum = pgEnum("notification_type", ["thank_you", "follow_up", "rebook_prompt"]);
