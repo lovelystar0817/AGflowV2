@@ -5,8 +5,20 @@ import { eq, and, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import type { Request } from "express";
 
 const PostgresSessionStore = connectPg(session);
+
+// Multi-tenant helper function
+export function getTenant(req: Request): string {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    throw new Error("Authentication required");
+  }
+  if (!req.user || !req.user.id) {
+    throw new Error("User ID not found in session");
+  }
+  return req.user.id;
+}
 
 export interface IStorage {
   getStylist(id: string): Promise<Stylist | undefined>;
