@@ -53,7 +53,7 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, req: any, res: Response, next: NextFunction) => {
+  app.use((err, req, res, next) => {
     logger.error({ requestId: req.requestId, path: req.path, err }, "Unhandled error");
     res.status(500).json({ error: "Internal error", requestId: req.requestId });
   });
