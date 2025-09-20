@@ -12,6 +12,7 @@ export const logger = pino();
 type RequestWithId = Request & { requestId?: string };
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy for proper IP detection
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -27,18 +28,19 @@ const globalLimiter = rateLimit({
 });
 
 // POST route rate limiter: 20 requests per 15 minutes per stylistId/IP
-const postLimiter = rateLimit({
+export const postLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 20, // limit each stylistId/IP to 20 requests per windowMs
   message: {
     error: "Too many POST requests, please try again later."
   },
-  keyGenerator: (req: Request & { user?: { id: string } }) => {
+  keyGenerator: (req: Request & { user?: { id: string } }, res, options) => {
     // Use stylistId from session when available, else fall back to IP
     if (req.user?.id) {
       return `stylist:${req.user.id}`;
     }
-    return req.ip || req.socket.remoteAddress || 'unknown';
+    // Use the proper IP key generator for IPv6 compatibility
+    return options.ipKeyGenerator!(req);
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,14 +48,6 @@ const postLimiter = rateLimit({
 
 // Apply global rate limiter to all routes
 app.use(globalLimiter);
-
-// Apply POST rate limiter only to POST routes
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.method === 'POST') {
-    return postLimiter(req, res, next);
-  }
-  next();
-});
 
 // Request ID and logging middleware
 app.use((req: RequestWithId, res: Response, next: NextFunction) => {

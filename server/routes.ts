@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { postLimiter } from "./index";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
@@ -50,6 +51,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
 
+  // Apply POST rate limiter to authenticated POST routes
+  // This runs after authentication so req.user is available
+  app.use((req, res, next) => {
+    if (req.method === 'POST' && req.path.startsWith('/api/') && !req.path.startsWith('/api/public/')) {
+      return postLimiter(req, res, next);
+    }
+    next();
+  });
 
   // Client management routes
   app.get("/api/clients", async (req, res, next) => {
