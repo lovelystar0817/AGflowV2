@@ -2083,6 +2083,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // These endpoints exposed system-wide data and controls to any authenticated user
   // Notification job processing happens automatically in the background
 
+  // Test endpoint for BullMQ queue functionality
+  app.post("/api/test/queue", async (req, res) => {
+    try {
+      const { notificationsQueue } = await import('./queue');
+      const job = await notificationsQueue.add('test-job', { 
+        message: 'hello',
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json({ 
+        success: true, 
+        jobId: job.id,
+        message: 'Test job added to queue successfully'
+      });
+    } catch (error) {
+      console.error('Error adding test job to queue:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to add job to queue'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
