@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { storage } from "./storage-instance";
+import { type PaginationParams, type PaginatedResponse } from "./storage";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand } from "./openai-service";
@@ -57,8 +58,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const clients = await storage.getClientsByStylist(req.user.id);
-      res.json(clients);
+      // Parse pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 20;
+      const q = req.query.q as string | undefined;
+
+      const paginationParams: PaginationParams = {
+        page,
+        pageSize,
+        q
+      };
+
+      const result = await storage.getClientsByStylistPaginated(req.user.id, paginationParams);
+      res.json(result);
     } catch (error) {
       next(error); // Pass error to error handler middleware
     }
@@ -172,8 +184,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const services = await storage.getStylistServices(req.user.id);
-      res.json(services);
+      // Parse pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 20;
+      const q = req.query.q as string | undefined;
+
+      const paginationParams: PaginationParams = {
+        page,
+        pageSize,
+        q
+      };
+
+      const result = await storage.getStylistServicesPaginated(req.user.id, paginationParams);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching services:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -464,11 +487,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
       }
       
-      const appointments = await storage.getAppointmentsByStylist(
+      // Parse pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 20;
+      const q = req.query.q as string | undefined;
+
+      const paginationParams: PaginationParams = {
+        page,
+        pageSize,
+        q
+      };
+
+      const result = await storage.getAppointmentsByStylistPaginated(
         req.user.id, 
+        paginationParams,
         date && typeof date === "string" ? date : undefined
       );
-      res.json(appointments);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching appointments:", error);
       res.status(500).json({ error: "Internal server error" });
@@ -698,8 +733,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const coupons = await storage.getCouponsByStylist(req.user.id);
-      res.json(coupons);
+      // Parse pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 20;
+      const q = req.query.q as string | undefined;
+
+      const paginationParams: PaginationParams = {
+        page,
+        pageSize,
+        q
+      };
+
+      const result = await storage.getCouponsByStylistPaginated(req.user.id, paginationParams);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching coupons:", error);
       res.status(500).json({ error: "Internal server error" });
