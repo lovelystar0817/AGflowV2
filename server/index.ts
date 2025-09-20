@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
 import pino from "pino";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
+import csrf from "csrf";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { getNotificationJobService } from "./notification-job";
@@ -9,10 +11,17 @@ import { getNotificationJobService } from "./notification-job";
 // Initialize logger
 export const logger = pino();
 
+// Initialize CSRF protection
+const tokens = new csrf();
+
 type RequestWithId = Request & { requestId?: string };
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy for proper IP detection
+
+// Add cookie parser middleware (required for CSRF)
+app.use(cookieParser());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -48,6 +57,46 @@ export const postLimiter = rateLimit({
 
 // Apply global rate limiter to all routes
 app.use(globalLimiter);
+
+// CSRF protection middleware
+app.use((req: Request & { session?: any }, res: Response, next: NextFunction) => {
+  // Skip CSRF check for GET, HEAD, OPTIONS requests and the /api/csrf endpoint itself
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.path === '/api/csrf') {
+    return next();
+  }
+
+  // Check for CSRF token in header or body
+  const token = req.headers['x-csrf-token'] || req.body._csrf;
+  
+  if (!token) {
+    return res.status(403).json({ error: 'CSRF token missing' });
+  }
+
+  // Validate CSRF token
+  const secret = req.session?.csrfSecret;
+  if (!secret || !tokens.verify(secret, token as string)) {
+    return res.status(403).json({ error: 'Invalid CSRF token' });
+  }
+
+  next();
+});
+
+// CSRF token endpoint
+app.get('/api/csrf', (req: Request & { session?: any }, res: Response) => {
+  // Ensure session exists
+  if (!req.session) {
+    return res.status(500).json({ error: 'Session not available' });
+  }
+
+  // Generate or reuse CSRF secret
+  if (!req.session.csrfSecret) {
+    req.session.csrfSecret = tokens.secretSync();
+  }
+
+  // Generate token
+  const token = tokens.create(req.session.csrfSecret);
+  res.json({ csrfToken: token });
+});
 
 // Request ID and logging middleware
 app.use((req: RequestWithId, res: Response, next: NextFunction) => {
