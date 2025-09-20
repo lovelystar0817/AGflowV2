@@ -1,8 +1,9 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { postLimiter } from "./index";
+import csrf from "csrf";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
@@ -14,6 +15,9 @@ import { db } from "./db";
 import { and, eq } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize CSRF protection
+  const tokens = new csrf();
+
   // Rate limiting for auth endpoints
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -50,6 +54,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup authentication routes
   setupAuth(app);
+
+  // CSRF protection middleware (after sessions are set up)
+  app.use((req: Request & { session?: any }, res: Response, next: NextFunction) => {
+    // Skip CSRF check for GET, HEAD, OPTIONS requests and the /api/csrf endpoint itself
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.path === '/api/csrf') {
+      return next();
+    }
+
+    // Check for CSRF token in header or body
+    const token = req.headers['x-csrf-token'] || req.body._csrf;
+    
+    if (!token) {
+      return res.status(403).json({ error: 'CSRF token missing' });
+    }
+
+    // Validate CSRF token
+    const secret = req.session?.csrfSecret;
+    if (!secret || !tokens.verify(secret, token as string)) {
+      return res.status(403).json({ error: 'Invalid CSRF token' });
+    }
+
+    next();
+  });
+
+  // CSRF token endpoint (after sessions are set up)
+  app.get('/api/csrf', (req: Request & { session?: any }, res: Response) => {
+    // Ensure session exists
+    if (!req.session) {
+      return res.status(500).json({ error: 'Session not available' });
+    }
+
+    // Generate or reuse CSRF secret
+    if (!req.session.csrfSecret) {
+      req.session.csrfSecret = tokens.secretSync();
+    }
+
+    // Generate token
+    const token = tokens.create(req.session.csrfSecret);
+    res.json({ csrfToken: token });
+  });
 
   // Apply POST rate limiter to authenticated POST routes
   // This runs after authentication so req.user is available

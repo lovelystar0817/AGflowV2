@@ -43,13 +43,14 @@ export const postLimiter = rateLimit({
   message: {
     error: "Too many POST requests, please try again later."
   },
-  keyGenerator: (req: Request & { user?: { id: string } }, res, options) => {
+  keyGenerator: (req: Request & { user?: { id: string } }) => {
     // Use stylistId from session when available, else fall back to IP
     if (req.user?.id) {
       return `stylist:${req.user.id}`;
     }
-    // Use the proper IP key generator for IPv6 compatibility
-    return options.ipKeyGenerator!(req);
+    // Use IPv6-safe IP key generation
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return ip === '::1' ? '127.0.0.1' : ip.replace(/:/g, '-');
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -57,46 +58,6 @@ export const postLimiter = rateLimit({
 
 // Apply global rate limiter to all routes
 app.use(globalLimiter);
-
-// CSRF protection middleware
-app.use((req: Request & { session?: any }, res: Response, next: NextFunction) => {
-  // Skip CSRF check for GET, HEAD, OPTIONS requests and the /api/csrf endpoint itself
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.path === '/api/csrf') {
-    return next();
-  }
-
-  // Check for CSRF token in header or body
-  const token = req.headers['x-csrf-token'] || req.body._csrf;
-  
-  if (!token) {
-    return res.status(403).json({ error: 'CSRF token missing' });
-  }
-
-  // Validate CSRF token
-  const secret = req.session?.csrfSecret;
-  if (!secret || !tokens.verify(secret, token as string)) {
-    return res.status(403).json({ error: 'Invalid CSRF token' });
-  }
-
-  next();
-});
-
-// CSRF token endpoint
-app.get('/api/csrf', (req: Request & { session?: any }, res: Response) => {
-  // Ensure session exists
-  if (!req.session) {
-    return res.status(500).json({ error: 'Session not available' });
-  }
-
-  // Generate or reuse CSRF secret
-  if (!req.session.csrfSecret) {
-    req.session.csrfSecret = tokens.secretSync();
-  }
-
-  // Generate token
-  const token = tokens.create(req.session.csrfSecret);
-  res.json({ csrfToken: token });
-});
 
 // Request ID and logging middleware
 app.use((req: RequestWithId, res: Response, next: NextFunction) => {
