@@ -1,7 +1,7 @@
 import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, like, ilike, count, asc, desc } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -20,6 +20,20 @@ export function getTenant(req: Request): string {
   return req.user.id;
 }
 
+// Pagination types
+export interface PaginationParams {
+  page: number;
+  pageSize: number;
+  q?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface IStorage {
   getStylist(id: string): Promise<Stylist | undefined>;
   getStylistByEmail(email: string): Promise<Stylist | undefined>;
@@ -29,6 +43,7 @@ export interface IStorage {
   
   // Service management
   getStylistServices(stylistId: string): Promise<StylistService[]>;
+  getStylistServicesPaginated(stylistId: string, params: PaginationParams): Promise<PaginatedResponse<StylistService>>;
   createStylistService(service: InsertStylistService): Promise<StylistService>;
   updateStylistService(id: number, stylistId: string, updates: Partial<InsertStylistService>): Promise<StylistService>;
   deleteStylistService(id: number, stylistId: string): Promise<void>;
@@ -36,6 +51,7 @@ export interface IStorage {
   
   // Client management
   getClientsByStylist(stylistId: string): Promise<Client[]>;
+  getClientsByStylistPaginated(stylistId: string, params: PaginationParams): Promise<PaginatedResponse<Client>>;
   getClient(id: string, stylistId: string): Promise<Client | undefined>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: string, stylistId: string, updates: Partial<InsertClient>): Promise<Client>;
@@ -48,6 +64,7 @@ export interface IStorage {
   
   // Appointment management
   getAppointmentsByStylist(stylistId: string, date?: string): Promise<Appointment[]>;
+  getAppointmentsByStylistPaginated(stylistId: string, params: PaginationParams, date?: string): Promise<PaginatedResponse<Appointment>>;
   getAppointmentsWithDetails(stylistId: string, date?: string): Promise<any[]>;
   getAppointment(id: string, stylistId: string): Promise<Appointment | undefined>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
@@ -60,6 +77,7 @@ export interface IStorage {
   
   // Coupon management
   getCouponsByStylist(stylistId: string): Promise<Coupon[]>;
+  getCouponsByStylistPaginated(stylistId: string, params: PaginationParams): Promise<PaginatedResponse<Coupon>>;
   getCoupon(id: string, stylistId: string): Promise<Coupon | undefined>;
   createCoupon(coupon: InsertCoupon): Promise<Coupon>;
   updateCoupon(id: string, stylistId: string, updates: Omit<Partial<InsertCoupon>, 'stylistId'>): Promise<Coupon>;
@@ -198,6 +216,46 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(stylistServices).where(eq(stylistServices.stylistId, stylistId));
   }
 
+  async getStylistServicesPaginated(stylistId: string, params: PaginationParams): Promise<PaginatedResponse<StylistService>> {
+    const { page: rawPage, pageSize: rawPageSize, q } = params;
+    const page = Math.max(1, rawPage);
+    const pageSize = Math.min(Math.max(1, rawPageSize), 100); // Cap at 100
+    const offset = (page - 1) * pageSize;
+
+    // Build where condition
+    let whereCondition = eq(stylistServices.stylistId, stylistId);
+    if (q && q.trim()) {
+      whereCondition = and(
+        eq(stylistServices.stylistId, stylistId),
+        ilike(stylistServices.serviceName, `%${q.trim()}%`)
+      );
+    }
+
+    // Get items with pagination
+    const items = await db
+      .select()
+      .from(stylistServices)
+      .where(whereCondition)
+      .orderBy(asc(stylistServices.serviceName))
+      .limit(pageSize)
+      .offset(offset);
+
+    // Get total count
+    const totalResult = await db
+      .select({ count: count() })
+      .from(stylistServices)
+      .where(whereCondition);
+    
+    const total = Number(totalResult[0]?.count ?? 0);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize
+    };
+  }
+
   async createStylistService(service: InsertStylistService): Promise<StylistService> {
     const [newService] = await db.insert(stylistServices).values(service).returning();
     return newService;
@@ -248,6 +306,47 @@ export class DatabaseStorage implements IStorage {
   // Client management methods
   async getClientsByStylist(stylistId: string): Promise<Client[]> {
     return await db.select().from(clients).where(eq(clients.stylistId, stylistId));
+  }
+
+  async getClientsByStylistPaginated(stylistId: string, params: PaginationParams): Promise<PaginatedResponse<Client>> {
+    const { page: rawPage, pageSize: rawPageSize, q } = params;
+    const page = Math.max(1, rawPage);
+    const pageSize = Math.min(Math.max(1, rawPageSize), 100); // Cap at 100
+    const offset = (page - 1) * pageSize;
+
+    // Build where condition
+    let whereCondition = eq(clients.stylistId, stylistId);
+    if (q && q.trim()) {
+      const searchPattern = `%${q.trim()}%`;
+      whereCondition = and(
+        eq(clients.stylistId, stylistId),
+        sql`(${clients.firstName} ILIKE ${searchPattern} OR ${clients.lastName} ILIKE ${searchPattern} OR ${clients.email} ILIKE ${searchPattern} OR ${clients.phone} ILIKE ${searchPattern})`
+      );
+    }
+
+    // Get items with pagination
+    const items = await db
+      .select()
+      .from(clients)
+      .where(whereCondition)
+      .orderBy(asc(clients.firstName), asc(clients.lastName))
+      .limit(pageSize)
+      .offset(offset);
+
+    // Get total count
+    const totalResult = await db
+      .select({ count: count() })
+      .from(clients)
+      .where(whereCondition);
+    
+    const total = Number(totalResult[0]?.count ?? 0);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize
+    };
   }
 
   async getClient(id: string, stylistId: string): Promise<Client | undefined> {
@@ -348,6 +447,52 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(appointments)
       .where(eq(appointments.stylistId, stylistId));
+  }
+
+  async getAppointmentsByStylistPaginated(stylistId: string, params: PaginationParams, date?: string): Promise<PaginatedResponse<Appointment>> {
+    const { page: rawPage, pageSize: rawPageSize, q } = params;
+    const page = Math.max(1, rawPage);
+    const pageSize = Math.min(Math.max(1, rawPageSize), 100); // Cap at 100
+    const offset = (page - 1) * pageSize;
+
+    // Build where condition
+    let whereCondition = eq(appointments.stylistId, stylistId);
+    if (date) {
+      whereCondition = and(eq(appointments.stylistId, stylistId), eq(appointments.date, date));
+    }
+    if (q && q.trim()) {
+      const baseCondition = date 
+        ? and(eq(appointments.stylistId, stylistId), eq(appointments.date, date))
+        : eq(appointments.stylistId, stylistId);
+      whereCondition = and(
+        baseCondition,
+        ilike(appointments.status, `%${q.trim()}%`)
+      );
+    }
+
+    // Get items with pagination
+    const items = await db
+      .select()
+      .from(appointments)
+      .where(whereCondition)
+      .orderBy(asc(appointments.date), asc(appointments.startTime))
+      .limit(pageSize)
+      .offset(offset);
+
+    // Get total count
+    const totalResult = await db
+      .select({ count: count() })
+      .from(appointments)
+      .where(whereCondition);
+    
+    const total = Number(totalResult[0]?.count ?? 0);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize
+    };
   }
 
   async getAppointmentsWithDetails(stylistId: string, date?: string): Promise<any[]> {
@@ -548,6 +693,47 @@ export class DatabaseStorage implements IStorage {
   // Coupon management methods
   async getCouponsByStylist(stylistId: string): Promise<Coupon[]> {
     return await db.select().from(coupons).where(eq(coupons.stylistId, stylistId));
+  }
+
+  async getCouponsByStylistPaginated(stylistId: string, params: PaginationParams): Promise<PaginatedResponse<Coupon>> {
+    const { page: rawPage, pageSize: rawPageSize, q } = params;
+    const page = Math.max(1, rawPage);
+    const pageSize = Math.min(Math.max(1, rawPageSize), 100); // Cap at 100
+    const offset = (page - 1) * pageSize;
+
+    // Build where condition
+    let whereCondition = eq(coupons.stylistId, stylistId);
+    if (q && q.trim()) {
+      const searchPattern = `%${q.trim()}%`;
+      whereCondition = and(
+        eq(coupons.stylistId, stylistId),
+        sql`(${coupons.title} ILIKE ${searchPattern} OR ${coupons.description} ILIKE ${searchPattern})`
+      );
+    }
+
+    // Get items with pagination
+    const items = await db
+      .select()
+      .from(coupons)
+      .where(whereCondition)
+      .orderBy(desc(coupons.createdAt))
+      .limit(pageSize)
+      .offset(offset);
+
+    // Get total count
+    const totalResult = await db
+      .select({ count: count() })
+      .from(coupons)
+      .where(whereCondition);
+    
+    const total = Number(totalResult[0]?.count ?? 0);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize
+    };
   }
 
   async getCoupon(id: string, stylistId: string): Promise<Coupon | undefined> {
