@@ -853,7 +853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create update schema based on insertCouponSchema but make fields optional
-      const updateCouponSchema = insertCouponSchema.omit({ stylistId: true }).partial().extend({
+      const updateCouponSchema = insertCouponSchema.partial().extend({
         duration: z.enum(["2weeks", "1month", "3months"]).optional(),
       });
 
@@ -871,6 +871,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Prepare update data
       const updateData: any = { ...validation.data };
+      
+      // Remove stylistId from update data for security (users cannot change coupon ownership)
+      delete updateData.stylistId;
       
       // Handle duration calculation if provided
       if (req.body.duration && updateData.startDate) {
