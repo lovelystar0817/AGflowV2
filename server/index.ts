@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
 import pino from "pino";
+import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { getNotificationJobService } from "./notification-job";
@@ -13,6 +14,46 @@ type RequestWithId = Request & { requestId?: string };
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Global rate limiter: 100 requests per 15 minutes per IP
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: "Too many requests from this IP, please try again later."
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// POST route rate limiter: 20 requests per 15 minutes per stylistId/IP
+const postLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each stylistId/IP to 20 requests per windowMs
+  message: {
+    error: "Too many POST requests, please try again later."
+  },
+  keyGenerator: (req: Request & { user?: { id: string } }) => {
+    // Use stylistId from session when available, else fall back to IP
+    if (req.user?.id) {
+      return `stylist:${req.user.id}`;
+    }
+    return req.ip || req.socket.remoteAddress || 'unknown';
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply global rate limiter to all routes
+app.use(globalLimiter);
+
+// Apply POST rate limiter only to POST routes
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'POST') {
+    return postLimiter(req, res, next);
+  }
+  next();
+});
 
 // Request ID and logging middleware
 app.use((req: RequestWithId, res: Response, next: NextFunction) => {
