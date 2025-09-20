@@ -111,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid client data", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
       const client = await storage.createClient(validation.data);
@@ -142,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = updateSchema.safeParse(req.body);
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid client data", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
       const updatedClient = await storage.updateClient(req.params.id, validation.data);
@@ -212,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = serviceFormSchema.safeParse(req.body);
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid service data", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
 
       const serviceData: InsertStylistService = {
@@ -244,7 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = serviceFormSchema.safeParse(req.body);
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid service data", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
 
       const updates = {
@@ -566,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = statusSchema.safeParse(req.body);
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid status value", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
       // First check if the appointment exists and belongs to this stylist
@@ -600,7 +600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid appointment data", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
       const { date, startTime, clientId, serviceId, notes } = validation.data;
@@ -782,7 +782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid coupon data", details: validation.error.errors });
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
 
       const coupon = await storage.createCoupon(validation.data);
@@ -795,44 +795,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/coupons/:id", async (req, res) => {
     try {
-      const { name, type, amount, serviceId, duration, startDate } = req.body;
-
-      if (!["percent", "flat"].includes(type)) {
-        return res.status(400).json({ error: "Invalid coupon type" });
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const updated = await db
-        .update(coupons)
-        .set({
-          name,
-          type,
-          amount,     // string is okay, DB will coerce to decimal
-          serviceId: serviceId || null,
-          startDate,
-          endDate: calculateEndDate(startDate, duration), // helper
-        })
-        .where(eq(coupons.id, req.params.id))
-        .returning();
+      // Create update schema based on insertCouponSchema but make fields optional
+      const updateCouponSchema = insertCouponSchema.omit({ stylistId: true }).partial().extend({
+        duration: z.enum(["2weeks", "1month", "3months"]).optional(),
+      });
 
-      if (!updated.length) {
+      const validation = updateCouponSchema.safeParse(req.body);
+
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
+      }
+
+      // Check if coupon exists and belongs to user
+      const existingCoupon = await storage.getCoupon(req.params.id, req.user.id);
+      if (!existingCoupon) {
         return res.status(404).json({ error: "Coupon not found" });
       }
 
-      res.json(updated[0]);
-    } catch (err) {
-      console.error("Coupon update error:", err);
-      res.status(500).json({ error: "Failed to update coupon" });
+      // Prepare update data
+      const updateData: any = { ...validation.data };
+      
+      // Handle duration calculation if provided
+      if (req.body.duration && updateData.startDate) {
+        updateData.endDate = calculateCouponEndDate(updateData.startDate, req.body.duration);
+      }
+
+      // Remove duration from update data as it's not a database field
+      delete updateData.duration;
+
+      const updatedCoupon = await storage.updateCoupon(req.params.id, updateData);
+      res.json(updatedCoupon);
+    } catch (error) {
+      console.error("Error updating coupon:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
-// helper function
-function calculateEndDate(startDate: string, duration: string) {
-  const start = new Date(startDate);
-  if (duration === "2weeks") start.setDate(start.getDate() + 14);
-  if (duration === "1month") start.setMonth(start.getMonth() + 1);
-  if (duration === "3months") start.setMonth(start.getMonth() + 3);
-  return start.toISOString().split("T")[0];
-}
 
   app.patch("/api/coupons/:id", async (req, res) => {
     try {
