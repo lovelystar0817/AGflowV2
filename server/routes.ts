@@ -852,9 +852,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      // Create update schema based on insertCouponSchema but make fields optional
-      const updateCouponSchema = insertCouponSchema.partial().extend({
+      // Create update schema for coupon editing
+      const updateCouponSchema = z.object({
+        name: z.string().min(1, "Coupon name is required").max(100, "Coupon name must be 100 characters or less").optional(),
+        type: z.enum(["percent", "flat"]).optional(),
+        amount: z.string().refine((val) => {
+          const num = parseFloat(val);
+          return !isNaN(num) && num > 0 && num <= 9999.99;
+        }, "Amount must be a valid number between 0.01 and 9999.99").optional(),
+        serviceId: z.number().int().positive().optional(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
         duration: z.enum(["2weeks", "1month", "3months"]).optional(),
+      }).superRefine((data, ctx) => {
+        // Validate percentage range for percent type
+        if (data.type === "percent" && data.amount) {
+          const num = parseFloat(data.amount);
+          if (num < 0 || num > 100) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Percentage must be between 0 and 100",
+              path: ["amount"]
+            });
+          }
+        }
+        
+        // Validate end date is after start date
+        if (data.startDate && data.endDate) {
+          const start = new Date(data.startDate);
+          const end = new Date(data.endDate);
+          if (end <= start) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "End date must be after start date",
+              path: ["endDate"]
+            });
+          }
+        }
       });
 
       const validation = updateCouponSchema.safeParse(req.body);
