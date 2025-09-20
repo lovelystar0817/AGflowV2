@@ -144,9 +144,12 @@ export default function DashboardPage() {
   const [isDateDrawerOpen, setIsDateDrawerOpen] = useState(false);
 
   // Services query
-  const { data: services = [], isLoading: servicesLoading } = useQuery<StylistService[]>({
+  const { data: servicesResponse, isLoading: servicesLoading } = useQuery<{ items: StylistService[] }>({
     queryKey: ["/api/services"],
   });
+
+  // Extract services array from paginated response
+  const services = servicesResponse?.items || [];
 
   // Clients query for dashboard stats
   const { data: clientsResponse } = useQuery<{ items: Client[] }>({
