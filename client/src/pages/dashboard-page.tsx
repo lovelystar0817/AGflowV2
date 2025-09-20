@@ -149,9 +149,12 @@ export default function DashboardPage() {
   });
 
   // Clients query for dashboard stats
-  const { data: clients = [] } = useQuery<Client[]>({
+  const { data: clientsResponse } = useQuery<{ items: Client[] }>({
     queryKey: ["/api/clients"],
   });
+
+  // Extract clients array from paginated response
+  const clients = clientsResponse?.items || [];
 
   // Active coupons query for dashboard stats
   const { data: couponsResponse, isLoading: couponsLoading } = useQuery<{ items: Coupon[] }>({
@@ -168,9 +171,12 @@ export default function DashboardPage() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   // Today's appointments query
-  const { data: todaysAppointments = [], isLoading: todaysAppointmentsLoading } = useQuery<any[]>({
+  const { data: todaysAppointmentsResponse, isLoading: todaysAppointmentsLoading } = useQuery<{ items: any[] }>({
     queryKey: [`/api/appointments?date=${today}`],
   });
+
+  // Extract today's appointments array from paginated response
+  const todaysAppointments = todaysAppointmentsResponse?.items || [];
 
   // Today's open slots query
   const { data: todaysSlots, isLoading: todaysSlotsLoading } = useQuery<{ total: number; available: number }>({
@@ -183,9 +189,12 @@ export default function DashboardPage() {
   });
 
   // New bookings today (appointments created today)
-  const { data: allAppointments = [], isLoading: allAppointmentsLoading } = useQuery<any[]>({
+  const { data: allAppointmentsResponse, isLoading: allAppointmentsLoading } = useQuery<{ items: any[] }>({
     queryKey: ["/api/appointments"],
   });
+
+  // Extract all appointments array from paginated response
+  const allAppointments = allAppointmentsResponse?.items || [];
 
   // Filter appointments created today
   const newBookingsToday = allAppointments.filter((appointment: any) => {
