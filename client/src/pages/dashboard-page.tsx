@@ -154,9 +154,12 @@ export default function DashboardPage() {
   });
 
   // Active coupons query for dashboard stats
-  const { data: coupons = [], isLoading: couponsLoading } = useQuery<Coupon[]>({
+  const { data: couponsResponse, isLoading: couponsLoading } = useQuery<{ items: Coupon[] }>({
     queryKey: ["/api/coupons"],
   });
+
+  // Extract coupons array from paginated response
+  const coupons = couponsResponse?.items || [];
 
   // Count active coupons (not expired)
   const activeCouponsCount = coupons.filter((coupon) => isCouponActive(coupon)).length;
