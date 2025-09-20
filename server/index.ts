@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
 import pino from "pino";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import csrf from "csrf";
 import { registerRoutes } from "./routes";
@@ -48,9 +48,8 @@ export const postLimiter = rateLimit({
     if (req.user?.id) {
       return `stylist:${req.user.id}`;
     }
-    // Use IPv6-safe IP key generation
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ip === '::1' ? '127.0.0.1' : ip.replace(/:/g, '-');
+    // Use proper IPv6-safe IP key generation
+    return ipKeyGenerator(req);
   },
   standardHeaders: true,
   legacyHeaders: false,

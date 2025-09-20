@@ -55,7 +55,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
 
-  // CSRF protection middleware (after sessions are set up)
+  // CSRF token endpoint (after sessions are set up, before CSRF middleware)
+  app.get('/api/csrf', (req: Request & { session?: any }, res: Response) => {
+    // Ensure session exists
+    if (!req.session) {
+      return res.status(500).json({ error: 'Session not available' });
+    }
+
+    // Generate or reuse CSRF secret
+    if (!req.session.csrfSecret) {
+      req.session.csrfSecret = tokens.secretSync();
+    }
+
+    // Generate token
+    const token = tokens.create(req.session.csrfSecret);
+    res.json({ csrfToken: token });
+  });
+
+  // CSRF protection middleware (protects ALL routes including auth)
   app.use((req: Request & { session?: any }, res: Response, next: NextFunction) => {
     // Skip CSRF check for GET, HEAD, OPTIONS requests and the /api/csrf endpoint itself
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.path === '/api/csrf') {
@@ -76,23 +93,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     next();
-  });
-
-  // CSRF token endpoint (after sessions are set up)
-  app.get('/api/csrf', (req: Request & { session?: any }, res: Response) => {
-    // Ensure session exists
-    if (!req.session) {
-      return res.status(500).json({ error: 'Session not available' });
-    }
-
-    // Generate or reuse CSRF secret
-    if (!req.session.csrfSecret) {
-      req.session.csrfSecret = tokens.secretSync();
-    }
-
-    // Generate token
-    const token = tokens.create(req.session.csrfSecret);
-    res.json({ csrfToken: token });
   });
 
   // Apply POST rate limiter to authenticated POST routes
