@@ -21,9 +21,12 @@ export default function CouponCreatePage() {
   const queryClient = useQueryClient();
 
   // Fetch available services for targeting
-  const { data: services, isLoading: servicesLoading } = useQuery<StylistService[]>({
+  const { data: servicesResponse, isLoading: servicesLoading } = useQuery<{ items: StylistService[] }>({
     queryKey: ["/api/services"],
   });
+
+  // Extract services array from paginated response
+  const services = servicesResponse?.items || [];
 
   const form = useForm<CouponFormData>({
     resolver: zodResolver(couponFormSchema),

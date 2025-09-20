@@ -63,10 +63,13 @@ export default function ProfileSetupPage() {
   const [activeServicesTab, setActiveServicesTab] = useState("hairstylist");
 
   // Fetch existing services
-  const { data: existingServices, isLoading: servicesLoading } = useQuery<StylistService[]>({
+  const { data: servicesResponse, isLoading: servicesLoading } = useQuery<{ items: StylistService[] }>({
     queryKey: ["/api/services"],
     enabled: !!user, // Only fetch if user is authenticated
   });
+
+  // Extract services array from paginated response
+  const existingServices = servicesResponse?.items || [];
 
   const form = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),

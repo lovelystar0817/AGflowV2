@@ -23,9 +23,12 @@ export function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const { data: clients = [], isLoading } = useQuery<Client[]>({
+  const { data: clientsResponse, isLoading } = useQuery<{ items: Client[] }>({
     queryKey: ["/api/clients"],
   });
+
+  // Extract clients array from paginated response
+  const clients = clientsResponse?.items || [];
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientFormSchema),

@@ -46,14 +46,20 @@ export default function CouponSendPage() {
   });
 
   // Fetch clients for targeting
-  const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
+  const { data: clientsResponse, isLoading: clientsLoading } = useQuery<{ items: Client[] }>({
     queryKey: ["/api/clients"],
   });
 
+  // Extract clients array from paginated response
+  const clients = clientsResponse?.items || [];
+
   // Fetch services for coupon context
-  const { data: services } = useQuery<StylistService[]>({
+  const { data: servicesResponse } = useQuery<{ items: StylistService[] }>({
     queryKey: ["/api/services"],
   });
+
+  // Extract services array from paginated response
+  const services = servicesResponse?.items || [];
   
   // Fetch current user/stylist data for business name
   const { data: user } = useQuery<Stylist>({
