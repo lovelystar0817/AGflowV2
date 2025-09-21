@@ -27,6 +27,7 @@ import { Loader2, Sparkles, CheckCircle, AlertCircle, Info, HelpCircle } from "l
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { AssistantShortcuts } from "./AssistantShortcuts";
+import { AssistantHistory } from "./AssistantHistory";
 
 interface AssistantResult {
   status: "confirm" | "needs_clarification" | "error";
@@ -294,11 +295,12 @@ export function AssistantShell() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Shortcuts Panel */}
-        <div className="md:col-span-1 order-1 md:order-1">
+        <div className="md:col-span-1 order-1 md:order-1 space-y-4">
           <AssistantShortcuts 
             onPromptClick={handlePromptClick}
             onFormOpen={handleFormOpen}
           />
+          <AssistantHistory />
         </div>
 
         {/* Main Command Interface */}

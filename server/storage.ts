@@ -102,6 +102,7 @@ export interface IStorage {
   
   // Action Log for audit trail
   insertActionLog(actionLog: InsertActionLog): Promise<ActionLog>;
+  getActionLogs(stylistId: string, limit?: number): Promise<ActionLog[]>;
   
   // Notification management  
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -1238,6 +1239,14 @@ export class DatabaseStorage implements IStorage {
   async insertActionLog(actionLogEntry: InsertActionLog): Promise<ActionLog> {
     const [result] = await db.insert(actionLog).values(actionLogEntry).returning();
     return result;
+  }
+
+  async getActionLogs(stylistId: string, limit: number = 5): Promise<ActionLog[]> {
+    return await db.select()
+      .from(actionLog)
+      .where(eq(actionLog.stylistId, stylistId))
+      .orderBy(desc(actionLog.createdAt))
+      .limit(limit);
   }
 
   // Legacy methods for compatibility with auth blueprint

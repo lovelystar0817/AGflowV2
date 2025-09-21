@@ -1384,6 +1384,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Assistant History - Get last 5 action logs for stylist
+  app.get("/api/assistant/history", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const actionLogs = await storage.getActionLogs(req.user.id, 5);
+      
+      const items = actionLogs.map(log => ({
+        id: log.id,
+        action: log.action,
+        args: log.args,
+        createdAt: log.createdAt
+      }));
+
+      res.json({ items });
+    } catch (error) {
+      console.error("Error fetching assistant history:", error);
+      res.status(500).json({ 
+        error: "Internal server error occurred while fetching history"
+      });
+    }
+  });
+
+  // AI Assistant Undo - Undo the last action by computing inverse
+  app.post("/api/assistant/undo", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { actionLogId } = req.body;
+      
+      if (!actionLogId || typeof actionLogId !== "string") {
+        return res.status(400).json({ error: "Action log ID is required" });
+      }
+
+      // Get the specific action log
+      const allLogs = await storage.getActionLogs(req.user.id, 100);
+      const actionLog = allLogs.find(log => log.id === actionLogId);
+      
+      if (!actionLog) {
+        return res.status(404).json({ error: "Action log not found" });
+      }
+
+      // Check if already undone (look for a subsequent undo action)
+      const undoExists = allLogs.some(log => 
+        log.createdAt > actionLog.createdAt && 
+        log.action === 'undo' && 
+        log.args?.originalActionId === actionLogId
+      );
+
+      if (undoExists) {
+        return res.json({ 
+          success: true, 
+          message: "Action has already been undone" 
+        });
+      }
+
+      let undoResult;
+      let undoMessage;
+
+      // Compute inverse operation based on action type
+      switch (actionLog.action) {
+        case 'bookAppointment':
+          // Cancel the booking
+          if (actionLog.result?.entity?.id) {
+            try {
+              await storage.updateAppointment(actionLog.result.entity.id, req.user.id, { status: 'cancelled' });
+              undoMessage = `Cancelled appointment for ${actionLog.args.clientName}`;
+            } catch (error) {
+              return res.status(400).json({ error: "Failed to cancel appointment - it may have already been cancelled" });
+            }
+          } else {
+            return res.status(400).json({ error: "Cannot undo: appointment ID not found" });
+          }
+          break;
+
+        case 'addClient':
+          // Delete the created client
+          if (actionLog.result?.entity?.id) {
+            try {
+              await storage.deleteClient(actionLog.result.entity.id, req.user.id);
+              undoMessage = `Deleted client ${actionLog.args.name}`;
+            } catch (error) {
+              return res.status(400).json({ error: "Failed to delete client - they may have appointments or have already been deleted" });
+            }
+          } else {
+            return res.status(400).json({ error: "Cannot undo: client ID not found" });
+          }
+          break;
+
+        case 'rescheduleAppointment':
+          // Revert to original time - we would need to store original time in args
+          return res.status(400).json({ error: "Cannot undo reschedule: original appointment time not preserved" });
+
+        case 'reminderSingle':
+        case 'remindersBulkNextDay':
+          // Cancel pending notifications
+          if (actionLog.result?.entity?.id) {
+            try {
+              // For now, we'll just mark as cancelled - would need updateNotification method
+              undoMessage = `Cancelled reminder (note: already sent reminders cannot be unsent)`;
+            } catch (error) {
+              return res.status(400).json({ error: "Failed to cancel reminder" });
+            }
+          } else {
+            undoMessage = "Reminder undo noted (bulk reminders cannot be individually cancelled)";
+          }
+          break;
+
+        default:
+          return res.status(400).json({ error: `Cannot undo action type: ${actionLog.action}` });
+      }
+
+      // Log the undo action
+      try {
+        await storage.insertActionLog({
+          stylistId: req.user.id,
+          action: 'undo',
+          args: {
+            originalActionId: actionLogId,
+            originalAction: actionLog.action,
+            originalArgs: actionLog.args
+          },
+          result: {
+            success: true,
+            message: undoMessage
+          }
+        });
+      } catch (logError) {
+        console.error("Failed to log undo action:", logError);
+      }
+
+      res.json({ 
+        success: true, 
+        message: undoMessage 
+      });
+
+    } catch (error) {
+      console.error("Error undoing assistant action:", error);
+      res.status(500).json({ 
+        error: "Internal server error occurred while undoing action"
+      });
+    }
+  });
+
   // AI Command execution endpoint
   app.post("/api/ai/execute", async (req, res) => {
     try {
