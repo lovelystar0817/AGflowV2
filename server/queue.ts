@@ -29,6 +29,11 @@ connection.on('close', () => {
 export const notificationsQueue = new Queue('notifications', { 
   connection,
   defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000, // Start with 2 second delay
+    },
     removeOnComplete: 100,
     removeOnFail: 50,
   },
