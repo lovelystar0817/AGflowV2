@@ -1349,9 +1349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stylistId: req.user.id,
           action,
           args,
-          requestId,
-          success: result.success,
-          errorMessage: result.success ? undefined : result.message
+          result: result
         });
       } catch (logError) {
         console.error("Failed to log action to audit trail:", logError);
@@ -1364,14 +1362,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log failed attempt
       try {
-        await storage.insertActionLog({
-          stylistId: req.user?.id || 'unknown',
-          action: req.body?.action || 'unknown',
-          args: req.body?.args || {},
-          requestId: req.body?.idempotencyKey || 'unknown',
-          success: false,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
-        });
+        if (req.user?.id) {
+          await storage.insertActionLog({
+            stylistId: req.user.id,
+            action: req.body?.action || 'unknown',
+            args: req.body?.args || {},
+            result: {
+              success: false,
+              message: error instanceof Error ? error.message : 'Unknown error'
+            }
+          });
+        }
       } catch (logError) {
         console.error("Failed to log error to audit trail:", logError);
       }

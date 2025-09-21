@@ -547,21 +547,19 @@ export type AiExecution = typeof aiExecutions.$inferSelect;
 
 // Action Log table for audit trail of AI assistant actions
 export const actionLog = pgTable("action_log", {
-  id: serial("id").primaryKey(),
-  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull(),
   action: text("action").notNull(),
   args: jsonb("args").notNull(),
-  requestId: text("request_id"),
-  success: boolean("success").notNull(),
-  errorMessage: text("error_message"),
-  executedAt: timestamp("executed_at").defaultNow(),
+  result: jsonb("result"),
+  createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
-  stylistActionIdx: index("stylist_action_idx").on(table.stylistId, table.executedAt),
+  stylistCreatedIdx: index("action_log_stylist_created_idx").on(table.stylistId, table.createdAt.desc()),
 }));
 
 export const insertActionLogSchema = createInsertSchema(actionLog).omit({
   id: true,
-  executedAt: true,
+  createdAt: true,
 });
 
 export type InsertActionLog = z.infer<typeof insertActionLogSchema>;
