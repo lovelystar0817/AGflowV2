@@ -461,10 +461,10 @@ export async function executeReminderSingle(stylistId: string, rawArgs: any): Pr
 
     // Find client
     const allClients = await storage.getClientsByStylist(stylistId);
-    const client = allClients.find(c => 
+    const client = allClients.find(c =>
       `${c.firstName} ${c.lastName}`.toLowerCase().includes(normalizedArgs.clientName.toLowerCase())
     );
-    
+
     if (!client) {
       return {
         success: false,
@@ -472,20 +472,36 @@ export async function executeReminderSingle(stylistId: string, rawArgs: any): Pr
       };
     }
 
+    const clientRecord = await storage.getClient(client.id, stylistId);
+    if (!clientRecord) {
+      return {
+        success: false,
+        message: `Client "${normalizedArgs.clientName}" could not be retrieved`
+      };
+    }
+
+    if (!clientRecord.optInMarketing) {
+      const fullName = `${clientRecord.firstName} ${clientRecord.lastName}`.trim() || normalizedArgs.clientName;
+      return {
+        success: false,
+        message: `${fullName} has opted out of marketing messages, so I couldn't schedule a reminder. Update their communication preferences if they'd like to receive reminders.`
+      };
+    }
+
     // Create reminder notification
     const notification = await storage.createNotification({
       stylistId,
-      clientId: client.id,
+      clientId: clientRecord.id,
       type: 'follow_up', // Use valid type from schema
-      subject: `Reminder for ${client.firstName} ${client.lastName}`,
-      message: `This is a reminder message for ${client.firstName} ${client.lastName}`,
+      subject: `Reminder for ${clientRecord.firstName} ${clientRecord.lastName}`,
+      message: `This is a reminder message for ${clientRecord.firstName} ${clientRecord.lastName}`,
       scheduledAt: new Date(normalizedArgs.when)
     });
 
     return {
       success: true,
       entity: notification,
-      message: `Successfully scheduled email reminder for ${client.firstName} ${client.lastName}`
+      message: `Successfully scheduled email reminder for ${clientRecord.firstName} ${clientRecord.lastName}`
     };
   } catch (error) {
     console.error('Error in executeReminderSingle:', error);
