@@ -35,7 +35,7 @@ interface AssistantShortcutsProps {
 }
 
 export function AssistantShortcuts({ onPromptClick, onFormOpen }: AssistantShortcutsProps) {
-  const [expandedGroup, setExpandedGroup] = useState<string | null>("clients");
+  const [expandedGroup, setExpandedGroup] = useState<string | null>("Clients");
 
   const shortcutGroups: ShortcutGroup[] = [
     {

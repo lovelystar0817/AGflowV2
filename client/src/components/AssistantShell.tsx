@@ -283,9 +283,9 @@ export function AssistantShell() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Shortcuts Panel */}
-        <div className="lg:col-span-1">
+        <div className="md:col-span-1 order-1 md:order-1">
           <AssistantShortcuts 
             onPromptClick={handlePromptClick}
             onFormOpen={handleFormOpen}
@@ -293,7 +293,7 @@ export function AssistantShell() {
         </div>
 
         {/* Main Command Interface */}
-        <div className="lg:col-span-2">
+        <div className="md:col-span-3 order-2 md:order-2">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
