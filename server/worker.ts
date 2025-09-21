@@ -1,13 +1,54 @@
 import { Worker, Job } from 'bullmq';
-import { connection } from './queue';
+import { connection, notificationsQueue } from './queue';
 import { nanoid } from 'nanoid';
 import { getNotificationJobService } from './notification-job';
 import { storage } from './storage-instance';
+import { processPromotionRules } from './promotion-automation';
+
+const PROMOTION_JOB_NAME = 'process-promotion-rules';
+const PROMOTION_JOB_ID = 'promotion-rules-nightly';
+const PROMOTION_JOB_CRON = process.env.PROMOTION_RULE_CRON || '0 7 * * *';
+const PROMOTION_JOB_TZ = process.env.PROMOTION_RULE_TZ || 'UTC';
+
+async function scheduleNightlyPromotionJob(): Promise<void> {
+  try {
+    const repeatableJobs = await notificationsQueue.getRepeatableJobs();
+    const existingJob = repeatableJobs.find((job) => job.id === PROMOTION_JOB_ID || job.name === PROMOTION_JOB_NAME);
+    const needsUpdate =
+      !existingJob ||
+      existingJob.pattern !== PROMOTION_JOB_CRON ||
+      (existingJob.tz ?? 'UTC') !== PROMOTION_JOB_TZ;
+
+    if (existingJob && needsUpdate) {
+      console.log(`Updating promotion automation schedule to cron: ${PROMOTION_JOB_CRON}, tz: ${PROMOTION_JOB_TZ}`);
+      await notificationsQueue.removeRepeatableByKey(existingJob.key);
+    }
+
+    if (needsUpdate) {
+      await notificationsQueue.add(
+        PROMOTION_JOB_NAME,
+        { scheduledAt: new Date().toISOString() },
+        {
+          jobId: PROMOTION_JOB_ID,
+          repeat: {
+            pattern: PROMOTION_JOB_CRON,
+            tz: PROMOTION_JOB_TZ,
+          },
+        },
+      );
+      console.log(`Scheduled nightly promotion automation job with cron ${PROMOTION_JOB_CRON} (${PROMOTION_JOB_TZ})`);
+    } else {
+      console.log('Nightly promotion automation job already scheduled.');
+    }
+  } catch (error) {
+    console.error('Failed to schedule promotion automation job:', error);
+  }
+}
 
 // Create Worker instance for "notifications" queue
 export const notificationWorker = new Worker('notifications', async (job: Job) => {
   const requestId = nanoid();
-  
+
   try {
     console.log(`[${requestId}] Processing job: ${JSON.stringify({
       id: job.id,
@@ -34,6 +75,11 @@ export const notificationWorker = new Worker('notifications', async (job: Job) =
       await notificationService.processNotifications();
       console.log(`[${requestId}] Processed follow-up notification for job ${job.id}`);
       
+    } else if (job.name === PROMOTION_JOB_NAME) {
+      console.log(`[${requestId}] Running promotion automation job`);
+      const summaries = await processPromotionRules();
+      console.log(`[${requestId}] Promotion automation completed with ${summaries.length} rule(s)`);
+      return { success: true, requestId, processedAt: new Date().toISOString(), summaries };
     } else {
       // Default fallback for backwards compatibility
       console.log(`[${requestId}] Processing default notification job ${job.id}`);
@@ -97,6 +143,7 @@ notificationWorker.on('error', (error: Error) => {
 
 notificationWorker.on('ready', () => {
   console.log('Notification worker is ready and waiting for jobs');
+  void scheduleNightlyPromotionJob();
 });
 
 notificationWorker.on('stalled', (jobId: string) => {
