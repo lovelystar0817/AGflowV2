@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +14,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertClientSchema, type Client, type InsertClient } from "@shared/schema";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, User, Phone, Mail } from "lucide-react";
+import { Plus, Edit, Trash2, User, Phone, Mail, Eye } from "lucide-react";
 
 const clientFormSchema = insertClientSchema.omit({ stylistId: true });
 type ClientFormData = z.infer<typeof clientFormSchema>;
 
 export function ClientsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -313,6 +315,14 @@ export function ClientsPage() {
                   </div>
                 )}
                 <div className="flex justify-end space-x-2 pt-3 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation(`/clients/${client.id}`)}
+                    data-testid={`button-view-client-${client.id}`}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
