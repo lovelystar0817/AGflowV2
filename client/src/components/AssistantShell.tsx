@@ -53,23 +53,32 @@ interface ConfirmationModalProps {
 }
 
 function ConfirmationModal({ isOpen, onClose, onConfirm, summary, action, isLoading }: ConfirmationModalProps) {
+  // Check if this is a reminder action
+  const isReminderAction = action && (action.includes('reminder') || action.includes('Reminder'));
+  
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent data-testid="confirmation-modal">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-blue-500" />
-            Confirm Action
+            {isReminderAction ? 'Confirm Email Reminder?' : 'Confirm Action'}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            <div className="space-y-3">
-              <div>
-                <strong>Action:</strong> {action}
-              </div>
+            {isReminderAction ? (
               <div className="bg-muted p-3 rounded-md">
-                <strong>Summary:</strong> {summary}
+                {summary}
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <strong>Action:</strong> {action}
+                </div>
+                <div className="bg-muted p-3 rounded-md">
+                  <strong>Summary:</strong> {summary}
+                </div>
+              </div>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -92,7 +101,7 @@ function ConfirmationModal({ isOpen, onClose, onConfirm, summary, action, isLoad
                 Executing...
               </>
             ) : (
-              "Confirm"
+              isReminderAction ? "Send Email" : "Confirm"
             )}
           </AlertDialogAction>
         </AlertDialogFooter>
