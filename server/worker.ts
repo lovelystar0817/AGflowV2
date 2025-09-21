@@ -2,6 +2,7 @@ import { Worker, Job } from 'bullmq';
 import { connection } from './queue';
 import { nanoid } from 'nanoid';
 import { getNotificationJobService } from './notification-job';
+import { storage } from './storage-instance';
 
 // Create Worker instance for "notifications" queue
 export const notificationWorker = new Worker('notifications', async (job: Job) => {
@@ -37,6 +38,23 @@ export const notificationWorker = new Worker('notifications', async (job: Job) =
       // Default fallback for backwards compatibility
       console.log(`[${requestId}] Processing default notification job ${job.id}`);
       await notificationService.processNotifications();
+    }
+
+    // Insert execution key to prevent duplicates
+    if (job.name === 'send-follow-up') {
+      const { stylistId, clientId, trigger, scheduledDate } = job.data;
+      const executionKey = `${stylistId}:${clientId}:${trigger}:${scheduledDate}`;
+      
+      try {
+        await storage.insertAiExecution({
+          stylistId,
+          key: executionKey
+        });
+        console.log(`[${requestId}] Recorded execution key: ${executionKey}`);
+      } catch (error) {
+        // If insertion fails due to duplicate key, that's actually expected and fine
+        console.log(`[${requestId}] Execution key already exists: ${executionKey}`);
+      }
     }
 
     console.log(`[${requestId}] Job ${job.id} completed successfully`);

@@ -527,6 +527,24 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type ScheduleReminder = z.infer<typeof scheduleReminderSchema>;
 
+// AI Executions table for tracking job duplicates
+export const aiExecutions = pgTable("ai_executions", {
+  id: serial("id").primaryKey(),
+  stylistId: uuid("stylist_id").notNull(),
+  key: text("key").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  stylistKeyUnique: uniqueIndex("ai_executions_stylist_key_idx").on(table.stylistId, table.key),
+}));
+
+export const insertAiExecutionSchema = createInsertSchema(aiExecutions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAiExecution = z.infer<typeof insertAiExecutionSchema>;
+export type AiExecution = typeof aiExecutions.$inferSelect;
+
 // Helper functions for coupon management
 export function calculateCouponEndDate(startDate: string, duration: "2weeks" | "1month" | "3months"): string {
   const start = new Date(startDate);

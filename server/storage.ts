@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql, like, ilike, count, asc, desc } from "drizzle-orm";
@@ -95,6 +95,10 @@ export interface IStorage {
   // AI Analytics methods
   getClientsLastVisit(stylistId: string): Promise<{ clientId: string; fullName: string; lastVisitDate: string | null; daysSince: number | null; totalVisits: number }[]>;
   getInactiveClients(stylistId: string, weeks?: number, optInOnly?: boolean): Promise<{ clientId: string; fullName: string; email: string | null; daysSinceLastVisit: number | null; totalVisits: number }[]>;
+  
+  // AI Executions for duplicate prevention
+  insertAiExecution(execution: InsertAiExecution): Promise<AiExecution>;
+  checkAiExecutionExists(stylistId: string, key: string): Promise<boolean>;
   
   // Notification management  
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -1207,6 +1211,24 @@ export class DatabaseStorage implements IStorage {
     );
     
     return clientsWithEmail;
+  }
+
+  // AI Executions for duplicate prevention
+  async insertAiExecution(execution: InsertAiExecution): Promise<AiExecution> {
+    const [result] = await db.insert(aiExecutions).values(execution).returning();
+    return result;
+  }
+
+  async checkAiExecutionExists(stylistId: string, key: string): Promise<boolean> {
+    const result = await db.select({ id: aiExecutions.id })
+      .from(aiExecutions)
+      .where(and(
+        eq(aiExecutions.stylistId, stylistId),
+        eq(aiExecutions.key, key)
+      ))
+      .limit(1);
+    
+    return result.length > 0;
   }
 
   // Legacy methods for compatibility with auth blueprint

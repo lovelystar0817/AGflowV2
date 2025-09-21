@@ -70,10 +70,17 @@ export class NotificationJobService {
     const jobId = `${stylistId}:${clientId}:${trigger}:${scheduledDate}`;
     
     try {
-      // Check if job already exists to prevent duplicates
+      // Check if execution already exists in database to prevent duplicates
+      const executionExists = await storage.checkAiExecutionExists(stylistId, jobId);
+      if (executionExists) {
+        console.log(`Follow-up notification execution ${jobId} already exists in database, skipping duplicate`);
+        return;
+      }
+
+      // Check if job already exists in queue to prevent duplicates
       const existingJob = await notificationsQueue.getJob(jobId);
       if (existingJob) {
-        console.log(`Follow-up notification job ${jobId} already exists, skipping duplicate`);
+        console.log(`Follow-up notification job ${jobId} already exists in queue, skipping duplicate`);
         return;
       }
 
