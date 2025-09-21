@@ -557,6 +557,20 @@ export const actionLog = pgTable("action_log", {
   stylistCreatedIdx: index("action_log_stylist_created_idx").on(table.stylistId, table.createdAt.desc()),
 }));
 
+// AI Usage tracking table
+export const aiUsage = pgTable("ai_usage", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull(),
+  tokensUsed: integer("tokens_used").notNull().default(0),
+  costCents: integer("cost_cents").notNull().default(0), // Cost in cents for precision
+  requestCount: integer("request_count").notNull().default(0),
+  date: text("date").notNull(), // YYYY-MM-DD format for daily tracking
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  stylistDateIdx: index("ai_usage_stylist_date_idx").on(table.stylistId, table.date),
+}));
+
 export const insertActionLogSchema = createInsertSchema(actionLog).omit({
   id: true,
   createdAt: true,
@@ -564,6 +578,16 @@ export const insertActionLogSchema = createInsertSchema(actionLog).omit({
 
 export type InsertActionLog = z.infer<typeof insertActionLogSchema>;
 export type ActionLog = typeof actionLog.$inferSelect;
+
+// AI Usage schemas
+export const insertAiUsageSchema = createInsertSchema(aiUsage).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAiUsage = z.infer<typeof insertAiUsageSchema>;
+export type AiUsage = typeof aiUsage.$inferSelect;
 
 // Helper functions for coupon management
 export function calculateCouponEndDate(startDate: string, duration: "2weeks" | "1month" | "3months"): string {

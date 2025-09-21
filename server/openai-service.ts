@@ -3,6 +3,7 @@ import { z } from "zod";
 import { env } from "./db";
 import { ActionSchemas, type ActionName } from "@shared/ai-actions";
 import { parseDate, parseTime, parsePhone, isValidEmail } from "./parsers";
+import { getStorage } from "./storage";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
@@ -258,8 +259,6 @@ export async function routePrompt({ prompt, stylistId }: RoutePromptInput): Prom
  * Route prompt using specified model tier
  */
 async function routeWithModel(prompt: string, stylistId: string, tier: "fast" | "detailed"): Promise<RouteResponse> {
-  budgetUsed++; // Budget tracking stub
-  
   const systemPrompt = tier === "fast" ? getFastSystemPrompt() : getDetailedSystemPrompt();
   
   try {
@@ -272,6 +271,27 @@ async function routeWithModel(prompt: string, stylistId: string, tier: "fast" | 
       response_format: { type: "json_object" },
       max_completion_tokens: 1000
     });
+
+    // Extract token usage from response
+    const tokensUsed = response.usage?.total_tokens || 0;
+    
+    // Estimate cost for gpt-5 (roughly $0.03 per 1k tokens - adjust based on actual pricing)
+    const costCents = Math.round((tokensUsed / 1000) * 3); // 3 cents per 1k tokens
+    
+    // Track usage in database
+    try {
+      const storage = getStorage();
+      await storage.incrementAiUsage(stylistId, tokensUsed, costCents);
+      
+      // Check budget warning (soft cap of $50/month = 5000 cents)
+      const stats = await storage.getAiUsageStats(stylistId, 30);
+      if (stats.totalCostCents > 4000) { // Warning at $40
+        console.warn(`AI usage budget warning for stylist ${stylistId}: $${stats.totalCostCents / 100} used this month`);
+      }
+    } catch (usageError) {
+      console.error('Failed to track AI usage:', usageError);
+      // Don't fail the request if usage tracking fails
+    }
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
     

@@ -44,6 +44,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   });
 
+  // Assistant rate limiter: 30 requests per 15 minutes per stylistId/IP
+  const assistantLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30, // Limit each stylistId/IP to 30 assistant requests per 15 minutes
+    message: "Too many assistant requests, please try again later. Assistant operations are rate limited.",
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      // Use stylistId from session when available, else fall back to IP
+      if (req.user?.id) {
+        return `assistant:${req.user.id}`;
+      }
+      // Use proper IPv6-safe IP key generation
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      return `assistant:${ipKeyGenerator(ip)}`;
+    },
+  });
+
   // Apply rate limiting to auth routes
   app.use("/api/register", authLimiter);
   app.use("/api/login", authLimiter);
@@ -52,7 +70,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/ai/book-appointment", aiLimiter);
   app.use("/api/ai/update-availability", aiLimiter);
   app.use("/api/ai/execute", aiLimiter);
-  app.use("/api/assistant/route", aiLimiter);
+  
+  // Apply assistant-specific rate limiting to assistant endpoints
+  app.use("/api/assistant/route", assistantLimiter);
+  app.use("/api/assistant/confirm", assistantLimiter);
+  app.use("/api/assistant/undo", assistantLimiter);
 
   // Setup authentication routes
   setupAuth(app);

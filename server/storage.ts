@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, aiUsage, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type AiUsage, type InsertAiUsage, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql, like, ilike, count, asc, desc } from "drizzle-orm";
@@ -103,6 +103,11 @@ export interface IStorage {
   // Action Log for audit trail
   insertActionLog(actionLog: InsertActionLog): Promise<ActionLog>;
   getActionLogs(stylistId: string, limit?: number): Promise<ActionLog[]>;
+  
+  // AI Usage tracking
+  incrementAiUsage(stylistId: string, tokensUsed: number, costCents: number): Promise<AiUsage>;
+  getAiUsage(stylistId: string, date?: string): Promise<AiUsage | undefined>;
+  getAiUsageStats(stylistId: string, days?: number): Promise<{ totalRequests: number; totalCostCents: number; totalTokens: number }>;
   
   // Notification management  
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -1249,6 +1254,77 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
+  // AI Usage tracking methods
+  async incrementAiUsage(stylistId: string, tokensUsed: number, costCents: number): Promise<AiUsage> {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Try to find existing usage record for today
+    const [existingUsage] = await db.select()
+      .from(aiUsage)
+      .where(and(
+        eq(aiUsage.stylistId, stylistId),
+        eq(aiUsage.date, today)
+      ));
+    
+    if (existingUsage) {
+      // Update existing record
+      const [updated] = await db.update(aiUsage)
+        .set({
+          tokensUsed: sql`${aiUsage.tokensUsed} + ${tokensUsed}`,
+          costCents: sql`${aiUsage.costCents} + ${costCents}`,
+          requestCount: sql`${aiUsage.requestCount} + 1`,
+          updatedAt: new Date()
+        })
+        .where(eq(aiUsage.id, existingUsage.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new record for today
+      const [created] = await db.insert(aiUsage)
+        .values({
+          stylistId,
+          tokensUsed,
+          costCents,
+          requestCount: 1,
+          date: today
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  async getAiUsage(stylistId: string, date?: string): Promise<AiUsage | undefined> {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    
+    const [usage] = await db.select()
+      .from(aiUsage)
+      .where(and(
+        eq(aiUsage.stylistId, stylistId),
+        eq(aiUsage.date, targetDate)
+      ));
+    
+    return usage || undefined;
+  }
+
+  async getAiUsageStats(stylistId: string, days: number = 30): Promise<{ totalRequests: number; totalCostCents: number; totalTokens: number }> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    
+    const result = await db.select({
+      totalRequests: sql<number>`COALESCE(SUM(${aiUsage.requestCount}), 0)`,
+      totalCostCents: sql<number>`COALESCE(SUM(${aiUsage.costCents}), 0)`,
+      totalTokens: sql<number>`COALESCE(SUM(${aiUsage.tokensUsed}), 0)`,
+    })
+      .from(aiUsage)
+      .where(and(
+        eq(aiUsage.stylistId, stylistId),
+        sql`${aiUsage.date} >= ${cutoffDateStr}`
+      ));
+    
+    return result[0] || { totalRequests: 0, totalCostCents: 0, totalTokens: 0 };
+  }
+
   // Legacy methods for compatibility with auth blueprint
   async getUser(id: string): Promise<Stylist | undefined> {
     return this.getStylist(id);
@@ -1534,3 +1610,7 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+export function getStorage() {
+  return storage;
+}
