@@ -348,6 +348,28 @@ export const insertClientVisitSchema = createInsertSchema(clientVisits).omit({
 export type InsertClientVisit = z.infer<typeof insertClientVisitSchema>;
 export type ClientVisit = typeof clientVisits.$inferSelect;
 
+// Promotion Rules table for automated coupon triggers
+export const promotionRules = pgTable("promotion_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  trigger: text("trigger").notNull(),
+  condition: json("condition").$type<{ count?: number; weeks?: number }>().notNull(),
+  rewardCouponId: uuid("reward_coupon_id").notNull().references(() => coupons.id),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  stylistIndex: index("promotion_rules_stylist_idx").on(table.stylistId),
+  triggerCheck: check("promotion_rules_trigger_check", sql`${table.trigger} IN ('after_n_visits', 'inactive_n_weeks')`)
+}));
+
+export const insertPromotionRuleSchema = createInsertSchema(promotionRules).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPromotionRule = z.infer<typeof insertPromotionRuleSchema>;
+export type PromotionRule = typeof promotionRules.$inferSelect;
+
 // Coupon type enum for database integrity
 export const couponTypeEnum = pgEnum("coupon_type", ["percent", "flat"]);
 
