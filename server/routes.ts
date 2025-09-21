@@ -254,6 +254,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get client details with visits and promotions
+  app.get("/api/clients/:id/visits", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const { id } = req.params;
+      
+      // Get client details
+      const client = await storage.getClient(id, req.user.id);
+      if (!client) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+      
+      // Get client visits
+      const visits = await storage.getClientVisits(req.user.id, id);
+      
+      // Get active coupons for the stylist
+      const activeCoupons = await storage.getCouponsByStylist(req.user.id);
+      
+      res.json({
+        client,
+        visits,
+        activeCoupons
+      });
+    } catch (error) {
+      console.error("Error fetching client visits:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Services management routes
   app.get("/api/services", async (req, res) => {
     try {
