@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Mail, Phone, MessageCircle, Gift, Plus } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MessageCircle, Gift, Plus, Megaphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -162,10 +162,10 @@ export default function ClientPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setLocation("/")}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation("/clients")}
             data-testid="button-back"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -241,9 +241,18 @@ export default function ClientPage() {
               <CardDescription>Perform common tasks for this client</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button 
-                variant="outline" 
-                className="justify-start" 
+              <Button
+                className="justify-start"
+                onClick={() => setLocation("/coupons/create")}
+                data-testid="button-create-promotion"
+              >
+                <Megaphone className="w-4 h-4 mr-2" />
+                Create Promotion
+              </Button>
+
+              <Button
+                variant="outline"
+                className="justify-start"
                 onClick={() => handleQuickAction("reminder")}
                 disabled={isProcessing}
                 data-testid="button-send-reminder"
