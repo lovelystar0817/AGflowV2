@@ -7,6 +7,11 @@ interface ExecuteResult {
   success: boolean;
   entity?: any;
   message: string;
+  nudge?: {
+    type: "reminder_suggestion";
+    date: string;
+    clientId: string;
+  };
 }
 
 /**
@@ -243,11 +248,27 @@ export async function executeBookAppointment(stylistId: string, rawArgs: any): P
       status: 'confirmed'
     });
 
-    return {
+    // Check if appointment is within 7 days for reminder nudge
+    const today = new Date();
+    const appointmentDate = new Date(normalizedArgs.date);
+    const daysUntilAppointment = Math.ceil((appointmentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const result: any = {
       success: true,
       entity: appointment,
       message: `Successfully booked ${service.serviceName} for ${client.firstName} ${client.lastName} on ${normalizedArgs.date}`
     };
+
+    // Add nudge if appointment is within 7 days
+    if (daysUntilAppointment >= 0 && daysUntilAppointment <= 7) {
+      result.nudge = {
+        type: "reminder_suggestion",
+        date: normalizedArgs.date,
+        clientId: client.id
+      };
+    }
+
+    return result;
   } catch (error) {
     console.error('Error in executeBookAppointment:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
