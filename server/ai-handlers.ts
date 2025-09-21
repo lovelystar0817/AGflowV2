@@ -1,7 +1,15 @@
 import { ActionSchemas, type ActionName } from "@shared/ai-actions";
+import type { Stylist } from "@shared/schema";
 import { parseDate, parseTime, parsePhone, isValidEmail } from "./parsers";
 import { storage } from "./storage-instance";
 import { createHash } from "crypto";
+import {
+  checkAppointmentConflicts,
+  checkAvailability,
+  calculateEndTime,
+  isWithinBusinessHours,
+  timeToMinutes
+} from "./scheduling-utils";
 
 interface ExecuteResult {
   success: boolean;
@@ -29,7 +37,7 @@ function generateIdempotencyKey(stylistId: string, action: ActionName, args: any
  */
 async function ensureIdempotency(stylistId: string, action: ActionName, args: any): Promise<{ shouldExecute: boolean; key: string }> {
   const key = generateIdempotencyKey(stylistId, action, args);
-  
+
   try {
     const exists = await storage.checkAiExecutionExists(stylistId, key);
     if (exists) {
@@ -47,6 +55,55 @@ async function ensureIdempotency(stylistId: string, action: ActionName, args: an
     }
     throw error;
   }
+}
+
+function resolveBusinessHours(stylist: Stylist | undefined, date: string): {
+  businessStart: string;
+  businessEnd: string;
+  isClosed: boolean;
+  dayLabel: string;
+} {
+  let appointmentDate = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(appointmentDate.getTime())) {
+    appointmentDate = new Date(date);
+  }
+  if (Number.isNaN(appointmentDate.getTime())) {
+    appointmentDate = new Date();
+  }
+
+  const dayOfWeek = appointmentDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  const dayLabel = dayOfWeek && dayOfWeek !== "invalid date"
+    ? dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)
+    : "the selected day";
+
+  let businessStart = "09:00";
+  let businessEnd = "18:00";
+
+  if (!stylist?.businessHours) {
+    return { businessStart, businessEnd, isClosed: false, dayLabel };
+  }
+
+  const dayHours = stylist.businessHours[dayOfWeek];
+
+  if (!dayHours) {
+    return { businessStart, businessEnd, isClosed: false, dayLabel };
+  }
+
+  if (dayHours.isClosed) {
+    return {
+      businessStart: dayHours.open ?? businessStart,
+      businessEnd: dayHours.close ?? businessEnd,
+      isClosed: true,
+      dayLabel
+    };
+  }
+
+  return {
+    businessStart: dayHours.open ?? businessStart,
+    businessEnd: dayHours.close ?? businessEnd,
+    isClosed: false,
+    dayLabel
+  };
 }
 
 /**
@@ -233,17 +290,64 @@ export async function executeBookAppointment(stylistId: string, rawArgs: any): P
       };
     }
 
-    // Create appointment - need to convert time to startTime/endTime
+    const stylist = await storage.getStylist(stylistId);
+
     const startDateTime = new Date(normalizedArgs.time);
-    const endDateTime = new Date(startDateTime.getTime() + (service.durationMinutes || 30) * 60000);
-    
+    const startTime = startDateTime.toISOString().substring(11, 16);
+    const rawDuration = service.durationMinutes ?? stylist?.defaultAppointmentDuration ?? 30;
+    const durationMinutes = rawDuration > 0 ? rawDuration : 30;
+    const endTime = calculateEndTime(startTime, durationMinutes);
+
+    const { businessStart, businessEnd, isClosed, dayLabel } = resolveBusinessHours(stylist, normalizedArgs.date);
+    if (isClosed) {
+      return {
+        success: false,
+        message: `Cannot book appointment: business is closed on ${dayLabel}.`
+      };
+    }
+
+    if (!isWithinBusinessHours(startTime, endTime, businessStart, businessEnd)) {
+      return {
+        success: false,
+        message: `Cannot book appointment: time is outside business hours (${businessStart}-${businessEnd}).`
+      };
+    }
+
+    const conflictCheck = await checkAppointmentConflicts(
+      stylistId,
+      normalizedArgs.date,
+      startTime,
+      durationMinutes
+    );
+
+    if (conflictCheck.hasConflict) {
+      return {
+        success: false,
+        message: "Cannot book appointment: time slot is already booked."
+      };
+    }
+
+    const availabilityCheck = await checkAvailability(
+      stylistId,
+      normalizedArgs.date,
+      startTime,
+      durationMinutes
+    );
+
+    if (!availabilityCheck.isAvailable) {
+      return {
+        success: false,
+        message: `Cannot book appointment: ${availabilityCheck.reason || "time slot is unavailable."}`
+      };
+    }
+
     const appointment = await storage.createAppointment({
       stylistId,
       clientId: client.id,
       serviceId: service.id,
       date: normalizedArgs.date,
-      startTime: startDateTime.toISOString(),
-      endTime: endDateTime.toISOString(),
+      startTime,
+      endTime,
       totalPrice: service.price,
       status: 'confirmed'
     });
@@ -303,21 +407,79 @@ export async function executeRescheduleAppointment(stylistId: string, rawArgs: a
       };
     }
 
-    // Update appointment - need to convert time to startTime/endTime
+    const existingAppointment = await storage.getAppointment(normalizedArgs.appointmentId, stylistId);
+    if (!existingAppointment) {
+      return {
+        success: false,
+        message: "Cannot reschedule appointment: appointment not found."
+      };
+    }
+
+    const stylist = await storage.getStylist(stylistId);
     const startDateTime = new Date(normalizedArgs.time);
-    // Use a default duration since we don't have the service info
-    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // Default 30 minutes
-    
+    const startTime = startDateTime.toISOString().substring(11, 16);
+
+    const existingDuration = timeToMinutes(existingAppointment.endTime) - timeToMinutes(existingAppointment.startTime);
+    const fallbackDuration = stylist?.defaultAppointmentDuration ?? 30;
+    const durationMinutes = existingDuration > 0 ? existingDuration : (fallbackDuration > 0 ? fallbackDuration : 30);
+    const endTime = calculateEndTime(startTime, durationMinutes);
+
+    const { businessStart, businessEnd, isClosed, dayLabel } = resolveBusinessHours(stylist, normalizedArgs.date);
+    if (isClosed) {
+      return {
+        success: false,
+        message: `Cannot reschedule appointment: business is closed on ${dayLabel}.`
+      };
+    }
+
+    if (!isWithinBusinessHours(startTime, endTime, businessStart, businessEnd)) {
+      return {
+        success: false,
+        message: `Cannot reschedule appointment: time is outside business hours (${businessStart}-${businessEnd}).`
+      };
+    }
+
+    const conflictCheck = await checkAppointmentConflicts(
+      stylistId,
+      normalizedArgs.date,
+      startTime,
+      durationMinutes,
+      normalizedArgs.appointmentId
+    );
+
+    if (conflictCheck.hasConflict) {
+      return {
+        success: false,
+        message: "Cannot reschedule appointment: time slot is already booked."
+      };
+    }
+
+    const availabilityCheck = await checkAvailability(
+      stylistId,
+      normalizedArgs.date,
+      startTime,
+      durationMinutes
+    );
+
+    if (!availabilityCheck.isAvailable) {
+      return {
+        success: false,
+        message: `Cannot reschedule appointment: ${availabilityCheck.reason || "time slot is unavailable."}`
+      };
+    }
+
     const updatedAppointment = await storage.updateAppointment(normalizedArgs.appointmentId, stylistId, {
       date: normalizedArgs.date,
-      startTime: startDateTime.toISOString(),
-      endTime: endDateTime.toISOString()
+      startTime,
+      endTime
     });
+
+    const displayTime = startDateTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     return {
       success: true,
       entity: updatedAppointment,
-      message: `Successfully rescheduled appointment to ${normalizedArgs.date} at ${new Date(normalizedArgs.time).toLocaleTimeString()}`
+      message: `Successfully rescheduled appointment to ${normalizedArgs.date} at ${displayTime}`
     };
   } catch (error) {
     console.error('Error in executeRescheduleAppointment:', error);
