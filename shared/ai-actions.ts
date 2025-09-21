@@ -45,12 +45,9 @@ export const setBusinessHoursSchema = z.object({
 export const reminderSingleSchema = z.object({
   clientName: z.string(),
   when: z.string(),
-  channel: z.enum(["sms", "email"]),
 });
 
-export const remindersBulkNextDaySchema = z.object({
-  channel: z.enum(["sms", "email"]),
-});
+export const remindersBulkNextDaySchema = z.object({});
 
 export const createCouponSchema = z.object({
   name: z.string(),

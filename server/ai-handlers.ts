@@ -77,7 +77,8 @@ export async function executeAddClient(stylistId: string, rawArgs: any): Promise
       firstName: firstName || '',
       lastName: lastName || '',
       phone: normalizedArgs.phone || undefined,
-      email: normalizedArgs.email || undefined
+      email: normalizedArgs.email || undefined,
+      optInMarketing: false // Default to false for AI-added clients
     });
 
     return {
@@ -456,14 +457,14 @@ export async function executeReminderSingle(stylistId: string, rawArgs: any): Pr
       clientId: client.id,
       type: 'follow_up', // Use valid type from schema
       subject: `Reminder for ${client.firstName} ${client.lastName}`,
-      message: `This is a reminder message via ${normalizedArgs.channel} for ${client.firstName} ${client.lastName}`,
+      message: `This is a reminder message for ${client.firstName} ${client.lastName}`,
       scheduledAt: new Date(normalizedArgs.when)
     });
 
     return {
       success: true,
       entity: notification,
-      message: `Successfully scheduled ${normalizedArgs.channel} reminder for ${client.firstName} ${client.lastName}`
+      message: `Successfully scheduled email reminder for ${client.firstName} ${client.lastName}`
     };
   } catch (error) {
     console.error('Error in executeReminderSingle:', error);
@@ -508,15 +509,14 @@ export async function executeRemindersBulkNextDay(stylistId: string, rawArgs: an
     for (const appointment of appointments) {
       const client = clientMap.get(appointment.clientId);
       if (client) {
-        // Check client opt-in preferences
-        const hasContact = args.channel === 'email' ? client.email : client.phone;
-        if (hasContact) {
+        // Check client has email contact info
+        if (client.email) {
           await storage.createNotification({
             stylistId,
             clientId: appointment.clientId,
             type: 'follow_up', // Use valid type from schema
             subject: 'Appointment Reminder',
-            message: `Reminder: You have an appointment tomorrow via ${args.channel}`,
+            message: `Reminder: You have an appointment tomorrow`,
             scheduledAt: new Date(tomorrow.getTime() - 24 * 60 * 60 * 1000) // Send day before
           });
           reminderCount++;
@@ -526,7 +526,7 @@ export async function executeRemindersBulkNextDay(stylistId: string, rawArgs: an
 
     return {
       success: true,
-      message: `Successfully scheduled ${reminderCount} ${args.channel} reminders for tomorrow's appointments`
+      message: `Successfully scheduled ${reminderCount} email reminders for tomorrow's appointments`
     };
   } catch (error) {
     console.error('Error in executeRemindersBulkNextDay:', error);
