@@ -1,9 +1,14 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { env } from "./db";
+import { ActionSchemas, type ActionName } from "@shared/ai-actions";
+import { parseDate, parseTime, parsePhone, isValidEmail } from "./parsers";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: env.OPENAI_KEY });
+const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+
+// Budget tracking stub - persist later
+let budgetUsed = 0;
 
 // CRITICAL SECURITY: Robust schema validation for OpenAI responses
 const aiActionResponseSchema = z.object({
@@ -163,8 +168,7 @@ Respond only with valid JSON.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: command }
       ],
-      response_format: { type: "json_object" },
-      temperature: 0, // Deterministic parsing for client data extraction
+      response_format: { type: "json_object" }
     });
 
     const content = response.choices[0].message.content;
@@ -200,6 +204,346 @@ Respond only with valid JSON.`;
     };
   }
 }
+
+// ============== NEW ROUTER PROMPT FUNCTIONALITY ==============
+
+interface RoutePromptInput {
+  prompt: string;
+  stylistId: string; // Enforced from session, never from model/user
+}
+
+interface RouteResponse {
+  status: "needs_clarification" | "confirm" | "error";
+  question?: string;
+  partialArgs?: any;
+  action?: ActionName;
+  args?: any;
+  summary?: string;
+  message?: string;
+}
+
+/**
+ * Routes a natural language prompt to an AI action
+ * Enforces tenant scoping through stylistId parameter
+ */
+export async function routePrompt({ prompt, stylistId }: RoutePromptInput): Promise<RouteResponse> {
+  // Validate required inputs
+  if (!prompt || !stylistId) {
+    return {
+      status: "error",
+      message: "Missing required prompt or stylist context"
+    };
+  }
+
+  try {
+    // Try cheap/fast model first (gpt-5 for initial routing)
+    const result = await routeWithModel(prompt, stylistId, "fast");
+    
+    // If ambiguous, escalate to better reasoning (same model but more detailed prompt)
+    if (result.status === "needs_clarification" && !result.question) {
+      return await routeWithModel(prompt, stylistId, "detailed");
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('OpenAI service error:', error);
+    return {
+      status: "error",
+      message: "Failed to process request. Please try again."
+    };
+  }
+}
+
+/**
+ * Route prompt using specified model tier
+ */
+async function routeWithModel(prompt: string, stylistId: string, tier: "fast" | "detailed"): Promise<RouteResponse> {
+  budgetUsed++; // Budget tracking stub
+  
+  const systemPrompt = tier === "fast" ? getFastSystemPrompt() : getDetailedSystemPrompt();
+  
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 1000
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    // Validate and normalize the response
+    return await validateAndNormalizeResponse(result, stylistId);
+    
+  } catch (error) {
+    console.error(`Model tier ${tier} failed:`, error);
+    return {
+      status: "error",
+      message: "Unable to understand request. Please rephrase."
+    };
+  }
+}
+
+/**
+ * Fast system prompt for initial routing
+ */
+function getFastSystemPrompt(): string {
+  return `You are a salon management AI assistant. Parse user requests into structured actions.
+
+Available actions:
+- addClient: Add new client {name, phone?, email?}
+- updateClient: Update client {clientId, name?, phone?, email?}  
+- findClient: Search clients {query}
+- bookAppointment: Book appointment {clientName, serviceName, date, time}
+- rescheduleAppointment: Reschedule {appointmentId, date, time}
+- blockTime: Block time slot {start, end}
+- setBusinessHours: Set hours {day, open, close}
+- reminderSingle: Send reminder {clientName, when, channel: "sms"|"email"}
+- remindersBulkNextDay: Bulk reminders {channel: "sms"|"email"}
+- createCoupon: Create coupon {name, type: "percent"|"flat", amount, serviceId?, startDate, duration: "2weeks"|"1month"|"3months"}
+- sendCoupon: Send coupon {couponId, segment?, preview?}
+
+Respond in JSON format:
+{
+  "action": "actionName",
+  "args": {...},
+  "confidence": 0.8,
+  "missing": ["field1"] // if info missing
+}
+
+If information is clearly missing, include "missing" array with required fields.`;
+}
+
+/**
+ * Detailed system prompt for complex parsing
+ */
+function getDetailedSystemPrompt(): string {
+  return `You are an expert salon management AI assistant. Carefully analyze user requests and extract structured actions.
+
+${getFastSystemPrompt()}
+
+Additional guidelines:
+- Parse natural dates like "tomorrow", "next Friday" 
+- Handle phone numbers in various formats
+- Validate email addresses
+- If ambiguous, ask ONE specific clarifying question
+- Always specify confidence level (0.0-1.0)
+- For missing required info, provide helpful question in "clarification" field
+
+Example responses:
+{
+  "action": "bookAppointment", 
+  "args": {"clientName": "John", "serviceName": "haircut", "date": "2025-09-22", "time": "15:00"},
+  "confidence": 0.9
+}
+
+{
+  "clarification": "What time would you like to schedule the appointment?",
+  "action": "bookAppointment",
+  "partialArgs": {"clientName": "Sarah", "serviceName": "color"}
+}`;
+}
+
+/**
+ * Validate response against schemas and normalize arguments
+ */
+async function validateAndNormalizeResponse(result: any, stylistId: string): Promise<RouteResponse> {
+  // Handle clarification requests
+  if (result.clarification) {
+    return {
+      status: "needs_clarification",
+      question: result.clarification,
+      partialArgs: result.partialArgs || {}
+    };
+  }
+
+  // Handle missing information
+  if (result.missing && result.missing.length > 0) {
+    const missingField = result.missing[0]; // Take first missing field
+    const question = generateClarificationQuestion(result.action, missingField);
+    return {
+      status: "needs_clarification",
+      question,
+      partialArgs: result.args || {}
+    };
+  }
+
+  // Validate action exists
+  const action = result.action as ActionName;
+  if (!action || !ActionSchemas[action]) {
+    return {
+      status: "error",
+      message: "Unknown action requested"
+    };
+  }
+
+  // Validate and normalize arguments
+  try {
+    const schema = ActionSchemas[action];
+    const rawArgs = result.args || {};
+    
+    // Normalize arguments using parsers
+    const normalizedArgs = await normalizeArguments(rawArgs, action);
+    
+    // Validate with schema
+    const validatedArgs = schema.parse(normalizedArgs);
+    
+    // Generate summary
+    const summary = generateActionSummary(action, validatedArgs);
+    
+    return {
+      status: "confirm",
+      action,
+      args: validatedArgs,
+      summary
+    };
+    
+  } catch (validationError) {
+    console.error('Validation error:', validationError);
+    
+    // Generate single clarifying question for validation failure
+    const question = generateValidationQuestion(action, validationError);
+    return {
+      status: "needs_clarification",
+      question,
+      partialArgs: result.args || {}
+    };
+  }
+}
+
+/**
+ * Normalize arguments using parser functions
+ */
+async function normalizeArguments(args: any, action: ActionName): Promise<any> {
+  const normalized = { ...args };
+  
+  // Normalize dates
+  if (normalized.date && typeof normalized.date === 'string') {
+    normalized.date = parseDate(normalized.date).split('T')[0]; // Extract date part
+  }
+  if (normalized.startDate && typeof normalized.startDate === 'string') {
+    normalized.startDate = parseDate(normalized.startDate).split('T')[0];
+  }
+  
+  // Normalize times
+  if (normalized.time && normalized.date) {
+    normalized.time = parseTime(normalized.time, normalized.date);
+  }
+  if (normalized.start && typeof normalized.start === 'string') {
+    normalized.start = parseDate(normalized.start);
+  }
+  if (normalized.end && typeof normalized.end === 'string') {
+    normalized.end = parseDate(normalized.end);
+  }
+  
+  // Normalize phone numbers
+  if (normalized.phone && typeof normalized.phone === 'string') {
+    const parsedPhone = parsePhone(normalized.phone);
+    if (parsedPhone) {
+      normalized.phone = parsedPhone;
+    }
+  }
+  
+  // Validate emails
+  if (normalized.email && typeof normalized.email === 'string') {
+    if (!isValidEmail(normalized.email)) {
+      throw new Error(`Invalid email format: ${normalized.email}`);
+    }
+  }
+  
+  return normalized;
+}
+
+/**
+ * Generate clarification question for missing fields
+ */
+function generateClarificationQuestion(action: ActionName, missingField: string): string {
+  const questions: Record<string, Record<string, string>> = {
+    bookAppointment: {
+      clientName: "What's the client's name for the appointment?",
+      serviceName: "Which service would you like to book?",
+      date: "What date would you like to schedule the appointment?",
+      time: "What time works best for the appointment?"
+    },
+    addClient: {
+      name: "What's the client's name?"
+    },
+    updateClient: {
+      clientId: "Which client would you like to update?"
+    },
+    reminderSingle: {
+      clientName: "Which client should receive the reminder?",
+      when: "When should the reminder be sent?",
+      channel: "Should the reminder be sent via SMS or email?"
+    },
+    createCoupon: {
+      name: "What should the coupon be called?",
+      type: "Should the coupon be a percentage or flat amount discount?",
+      amount: "What's the discount amount?",
+      startDate: "When should the coupon become active?",
+      duration: "How long should the coupon be valid? (2 weeks, 1 month, or 3 months)"
+    }
+  };
+  
+  return questions[action]?.[missingField] || `Please provide the ${missingField} for this ${action} request.`;
+}
+
+/**
+ * Generate clarification question for validation errors
+ */
+function generateValidationQuestion(action: ActionName, error: any): string {
+  const message = error.message || error.toString();
+  
+  if (message.includes('email')) {
+    return "Please provide a valid email address (e.g., client@example.com).";
+  }
+  if (message.includes('phone')) {
+    return "Please provide a valid phone number with area code.";
+  }
+  if (message.includes('date')) {
+    return "Please specify a valid date (e.g., 'tomorrow', 'next Friday', or '2025-12-25').";
+  }
+  if (message.includes('time')) {
+    return "Please specify a valid time (e.g., '3pm', '15:30', or '2:30 PM').";
+  }
+  
+  return `Please provide valid information for your ${action} request.`;
+}
+
+/**
+ * Generate user-friendly summary of action
+ */
+function generateActionSummary(action: ActionName, args: any): string {
+  const summaries: Record<ActionName, (args: any) => string> = {
+    addClient: (a) => `Add new client "${a.name}"${a.phone ? ` (${a.phone})` : ''}${a.email ? ` (${a.email})` : ''}`,
+    updateClient: (a) => `Update client information${a.name ? ` - name: ${a.name}` : ''}${a.phone ? ` - phone: ${a.phone}` : ''}${a.email ? ` - email: ${a.email}` : ''}`,
+    findClient: (a) => `Search for clients matching "${a.query}"`,
+    bookAppointment: (a) => `Book ${a.serviceName} appointment for ${a.clientName} on ${a.date} at ${new Date(a.time).toLocaleTimeString()}`,
+    rescheduleAppointment: (a) => `Reschedule appointment to ${a.date} at ${new Date(a.time).toLocaleTimeString()}`,
+    blockTime: (a) => `Block time from ${new Date(a.start).toLocaleString()} to ${new Date(a.end).toLocaleString()}`,
+    setBusinessHours: (a) => `Set ${a.day} hours: ${a.open} - ${a.close}`,
+    reminderSingle: (a) => `Send ${a.channel} reminder to ${a.clientName} ${a.when}`,
+    remindersBulkNextDay: (a) => `Send ${a.channel} reminders to all clients for tomorrow's appointments`,
+    createCoupon: (a) => `Create "${a.name}" coupon: ${a.amount}${a.type === 'percent' ? '%' : '$'} off, valid for ${a.duration}`,
+    sendCoupon: (a) => `Send coupon${a.preview ? ' preview' : ''}${a.segment ? ' to targeted segment' : ' to all clients'}`
+  };
+  
+  return summaries[action]?.(args) || `Execute ${action} with provided parameters`;
+}
+
+// Export budget tracking for monitoring
+export function getBudgetUsed(): number {
+  return budgetUsed;
+}
+
+export function resetBudget(): void {
+  budgetUsed = 0;
+}
+
+// ============== EXISTING LEGACY FUNCTIONS ==============
 
 export async function parseSchedulingCommand(command: string, stylistInfo: any): Promise<AISchedulingResponse> {
   try {
@@ -276,7 +620,7 @@ Business Context:
 Respond only with valid JSON.`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: command }

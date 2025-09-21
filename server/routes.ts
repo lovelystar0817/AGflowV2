@@ -8,7 +8,7 @@ import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
 import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
-import { parseAICommand, parseSchedulingCommand } from "./openai-service";
+import { parseAICommand, parseSchedulingCommand, routePrompt } from "./openai-service";
 import { findBestClientMatch, findBestServiceMatch, checkAppointmentConflicts, checkAvailability, calculateEndTime, isWithinBusinessHours } from "./scheduling-utils";
 import { getNotificationJobService } from "./notification-job";
 import { db } from "./db";
@@ -51,6 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/ai/book-appointment", aiLimiter);
   app.use("/api/ai/update-availability", aiLimiter);
   app.use("/api/ai/execute", aiLimiter);
+  app.use("/api/assistant/route", aiLimiter);
 
   // Setup authentication routes
   setupAuth(app);
@@ -1283,6 +1284,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching inactive clients:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // AI Assistant Router - New unified prompt routing endpoint
+  app.post("/api/assistant/route", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { prompt } = req.body;
+      
+      if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+
+      // Route prompt using OpenAI service with tenant scoping
+      console.log(`Processing AI assistant prompt: "${prompt.trim()}" for stylist ${req.user.id}`);
+      const result = await routePrompt({ 
+        prompt: prompt.trim(), 
+        stylistId: req.user.id 
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error in assistant router:", error);
+      res.status(500).json({ 
+        status: "error",
+        message: "Internal server error occurred while processing request"
+      });
     }
   });
 
