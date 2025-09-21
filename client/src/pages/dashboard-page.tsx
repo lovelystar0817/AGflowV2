@@ -23,6 +23,7 @@ import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
 import QRCodeSection from "@/components/qr-code-section";
 import { EditCouponModal, type CouponForEditing } from "@/components/EditCouponModal";
+import { AssistantShell } from "@/components/AssistantShell";
 import { isProfileComplete, serviceFormSchema, type StylistService, type Client, type Coupon } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1142,7 +1143,7 @@ export default function DashboardPage() {
                       Use natural language to automate your business tasks. Tell the AI what you want to do and it will handle the rest.
                     </p>
                   </div>
-                  <AICommandBox />
+                  <AssistantShell />
                 </div>
               </div>
             </Card>
