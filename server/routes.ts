@@ -1108,6 +1108,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(delivery);
     } catch (error) {
       console.error("Error creating coupon delivery:", error);
+      if (error instanceof Error && error.message.includes("already received this coupon")) {
+        return res.status(409).json({ error: "This client has already received this coupon" });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });
