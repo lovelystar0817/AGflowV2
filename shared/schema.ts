@@ -329,6 +329,25 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type Appointment = typeof appointments.$inferSelect;
 
+// Client Visits table to track completed appointments
+export const clientVisits = pgTable("client_visits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id),
+  visitDate: date("visit_date").notNull().defaultNow(),
+  notes: text("notes"),
+}, (table) => ({
+  stylistClientIndex: index("client_visits_stylist_client_idx").on(table.stylistId, table.clientId),
+}));
+
+export const insertClientVisitSchema = createInsertSchema(clientVisits).omit({
+  id: true,
+});
+
+export type InsertClientVisit = z.infer<typeof insertClientVisitSchema>;
+export type ClientVisit = typeof clientVisits.$inferSelect;
+
 // Coupon type enum for database integrity
 export const couponTypeEnum = pgEnum("coupon_type", ["percent", "flat"]);
 

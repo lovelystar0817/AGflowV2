@@ -656,7 +656,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const updatedAppointment = await storage.updateAppointment(id, { status: validation.data.status });
+      const updatedAppointment = await storage.updateAppointment(id, req.user.id, { status: validation.data.status });
+      
+      // If appointment is marked as completed, create a client visit record
+      if (validation.data.status === "completed") {
+        await storage.createClientVisit({
+          stylistId: req.user.id,
+          clientId: appointment.clientId,
+          appointmentId: id,
+          visitDate: new Date().toISOString().split('T')[0], // Today's date
+          notes: null
+        });
+      }
       
       res.json(updatedAppointment);
     } catch (error) {

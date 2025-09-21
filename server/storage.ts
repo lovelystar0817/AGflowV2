@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, aiUsage, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type AiUsage, type InsertAiUsage, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, aiUsage, clientVisits, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type AiUsage, type InsertAiUsage, type ClientVisit, type InsertClientVisit, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql, like, ilike, count, asc, desc } from "drizzle-orm";
@@ -130,6 +130,10 @@ export interface IStorage {
     date: string;
     slots: string[];
   }[]>;
+  
+  // Client visits tracking
+  createClientVisit(visit: InsertClientVisit): Promise<ClientVisit>;
+  getClientVisits(stylistId: string, clientId?: string): Promise<ClientVisit[]>;
   
   // Legacy method names for compatibility with auth blueprint
   getUser(id: string): Promise<Stylist | undefined>;
@@ -1606,6 +1610,24 @@ export class DatabaseStorage implements IStorage {
     }
     
     return results;
+  }
+
+  // Client visits tracking methods
+  async createClientVisit(visit: InsertClientVisit): Promise<ClientVisit> {
+    const [created] = await db.insert(clientVisits).values(visit).returning();
+    return created;
+  }
+
+  async getClientVisits(stylistId: string, clientId?: string): Promise<ClientVisit[]> {
+    const whereConditions = [eq(clientVisits.stylistId, stylistId)];
+    if (clientId) {
+      whereConditions.push(eq(clientVisits.clientId, clientId));
+    }
+    
+    return await db.select()
+      .from(clientVisits)
+      .where(and(...whereConditions))
+      .orderBy(desc(clientVisits.visitDate));
   }
 }
 
