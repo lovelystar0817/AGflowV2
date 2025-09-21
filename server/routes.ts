@@ -1318,6 +1318,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Assistant Confirm - Execute confirmed AI actions with audit logging
+  app.post("/api/assistant/confirm", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { action, args, idempotencyKey } = req.body;
+      
+      if (!action || typeof action !== "string") {
+        return res.status(400).json({ error: "Action is required" });
+      }
+
+      if (!args || typeof args !== "object") {
+        return res.status(400).json({ error: "Args are required" });
+      }
+
+      const requestId = idempotencyKey || `${Date.now()}-${Math.random()}`;
+      
+      // Log the action attempt
+      console.log(`Confirming AI action: "${action}" for stylist ${req.user.id}`, { args, requestId });
+
+      // Execute action with tenant scoping (stylistId from session, never from input)
+      const result = await executeAction(req.user.id, action, args);
+
+      // Log to audit trail
+      try {
+        await storage.insertActionLog({
+          stylistId: req.user.id,
+          action,
+          args,
+          requestId,
+          success: result.success,
+          errorMessage: result.success ? undefined : result.message
+        });
+      } catch (logError) {
+        console.error("Failed to log action to audit trail:", logError);
+        // Don't fail the request if logging fails
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error executing confirmed AI action:", error);
+      
+      // Log failed attempt
+      try {
+        await storage.insertActionLog({
+          stylistId: req.user?.id || 'unknown',
+          action: req.body?.action || 'unknown',
+          args: req.body?.args || {},
+          requestId: req.body?.idempotencyKey || 'unknown',
+          success: false,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } catch (logError) {
+        console.error("Failed to log error to audit trail:", logError);
+      }
+
+      res.status(500).json({ 
+        success: false,
+        message: "Internal server error occurred while executing action"
+      });
+    }
+  });
+
   // AI Command execution endpoint
   app.post("/api/ai/execute", async (req, res) => {
     try {

@@ -545,6 +545,28 @@ export const insertAiExecutionSchema = createInsertSchema(aiExecutions).omit({
 export type InsertAiExecution = z.infer<typeof insertAiExecutionSchema>;
 export type AiExecution = typeof aiExecutions.$inferSelect;
 
+// Action Log table for audit trail of AI assistant actions
+export const actionLog = pgTable("action_log", {
+  id: serial("id").primaryKey(),
+  stylistId: uuid("stylist_id").notNull().references(() => stylists.id),
+  action: text("action").notNull(),
+  args: jsonb("args").notNull(),
+  requestId: text("request_id"),
+  success: boolean("success").notNull(),
+  errorMessage: text("error_message"),
+  executedAt: timestamp("executed_at").defaultNow(),
+}, (table) => ({
+  stylistActionIdx: index("stylist_action_idx").on(table.stylistId, table.executedAt),
+}));
+
+export const insertActionLogSchema = createInsertSchema(actionLog).omit({
+  id: true,
+  executedAt: true,
+});
+
+export type InsertActionLog = z.infer<typeof insertActionLogSchema>;
+export type ActionLog = typeof actionLog.$inferSelect;
+
 // Helper functions for coupon management
 export function calculateCouponEndDate(startDate: string, duration: "2weeks" | "1month" | "3months"): string {
   const start = new Date(startDate);

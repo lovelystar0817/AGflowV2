@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql, like, ilike, count, asc, desc } from "drizzle-orm";
@@ -99,6 +99,9 @@ export interface IStorage {
   // AI Executions for duplicate prevention
   insertAiExecution(execution: InsertAiExecution): Promise<AiExecution>;
   checkAiExecutionExists(stylistId: string, key: string): Promise<boolean>;
+  
+  // Action Log for audit trail
+  insertActionLog(actionLog: InsertActionLog): Promise<ActionLog>;
   
   // Notification management  
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -1229,6 +1232,12 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     return result.length > 0;
+  }
+
+  // Action Log for audit trail
+  async insertActionLog(actionLogEntry: InsertActionLog): Promise<ActionLog> {
+    const [result] = await db.insert(actionLog).values(actionLogEntry).returning();
+    return result;
   }
 
   // Legacy methods for compatibility with auth blueprint
