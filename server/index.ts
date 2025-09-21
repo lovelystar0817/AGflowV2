@@ -25,10 +25,10 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Global rate limiter: 100 requests per 15 minutes per IP
+// Global rate limiter: Temporarily increased to 10000 requests per 15 minutes per IP for testing
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 10000, // temporarily increased limit for testing
   message: {
     error: "Too many requests from this IP, please try again later."
   },
