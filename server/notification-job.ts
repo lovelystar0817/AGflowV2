@@ -1,10 +1,9 @@
 import { storage } from "./storage-instance";
 import { getResendEmailService } from "./resend-email-service";
+import { notificationsQueue } from "./queue";
 
 export class NotificationJobService {
-  private intervalId: NodeJS.Timeout | null = null;
   private isProcessing = false;
-  private readonly INTERVAL_HOURS = 1; // Run every hour
   private readonly emailService = getResendEmailService();
 
   constructor() {
@@ -12,36 +11,86 @@ export class NotificationJobService {
   }
 
   /**
-   * Start the background job that processes pending notifications every hour
+   * Start the background job by enqueuing initial processing job
    */
   start(): void {
-    if (this.intervalId) {
-      console.log("Notification job already running");
-      return;
-    }
-
-    // Convert hours to milliseconds
-    const intervalMs = this.INTERVAL_HOURS * 60 * 60 * 1000;
-
-    console.log(`Starting notification job service - will run every ${this.INTERVAL_HOURS} hour(s)`);
-
-    // Run immediately on start
-    this.processNotifications();
-
-    // Set up recurring job
-    this.intervalId = setInterval(() => {
-      this.processNotifications();
-    }, intervalMs);
+    console.log("Starting notification job service - processing notifications every hour");
+    
+    // Enqueue initial processing job
+    this.enqueueProcessingJob();
   }
 
   /**
-   * Stop the background job
+   * Stop the background job (no-op since we use queue now)
    */
   stop(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-      console.log("Notification job service stopped");
+    console.log("Notification job service stopped");
+  }
+
+  /**
+   * Enqueue notification processing job with idempotency
+   */
+  private async enqueueProcessingJob(): Promise<void> {
+    const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const jobId = `notification-processing:${date}:${Math.floor(Date.now() / (60 * 60 * 1000))}`; // Hour granularity
+    
+    try {
+      // Check if job already exists to prevent duplicates
+      const existingJob = await notificationsQueue.getJob(jobId);
+      if (existingJob) {
+        console.log(`Processing job ${jobId} already exists, skipping duplicate`);
+        return;
+      }
+
+      await notificationsQueue.add('process-notifications', {
+        timestamp: new Date().toISOString(),
+        trigger: 'scheduled'
+      }, {
+        jobId,
+        delay: 0,
+        repeat: { every: 60 * 60 * 1000 } // Repeat every hour
+      });
+
+      console.log(`Enqueued notification processing job with ID: ${jobId}`);
+    } catch (error) {
+      console.error('Failed to enqueue notification processing job:', error);
+    }
+  }
+
+  /**
+   * Enqueue follow-up notification with idempotency
+   */
+  async enqueueFollowUpNotification(
+    stylistId: string, 
+    clientId: string, 
+    trigger: string, 
+    scheduledDate: string,
+    notificationData: any
+  ): Promise<void> {
+    const jobId = `${stylistId}:${clientId}:${trigger}:${scheduledDate}`;
+    
+    try {
+      // Check if job already exists to prevent duplicates
+      const existingJob = await notificationsQueue.getJob(jobId);
+      if (existingJob) {
+        console.log(`Follow-up notification job ${jobId} already exists, skipping duplicate`);
+        return;
+      }
+
+      await notificationsQueue.add('send-follow-up', {
+        stylistId,
+        clientId,
+        trigger,
+        scheduledDate,
+        ...notificationData
+      }, {
+        jobId,
+        delay: new Date(scheduledDate).getTime() - Date.now()
+      });
+
+      console.log(`Enqueued follow-up notification with ID: ${jobId}`);
+    } catch (error) {
+      console.error(`Failed to enqueue follow-up notification ${jobId}:`, error);
     }
   }
 
@@ -49,7 +98,7 @@ export class NotificationJobService {
    * Process all pending notifications that are due to be sent
    * 🔒 SECURITY: Now processes per stylist to ensure proper tenant isolation
    */
-  private async processNotifications(): Promise<void> {
+  async processNotifications(): Promise<void> {
     if (this.isProcessing) {
       console.log("Notification processing already in progress, skipping this run");
       return;
@@ -233,12 +282,10 @@ export class NotificationJobService {
   getStatus(): {
     isRunning: boolean;
     isProcessing: boolean;
-    intervalHours: number;
   } {
     return {
-      isRunning: this.intervalId !== null,
+      isRunning: true, // Always running since we use queue
       isProcessing: this.isProcessing,
-      intervalHours: this.INTERVAL_HOURS,
     };
   }
 

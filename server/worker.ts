@@ -1,6 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { connection } from './queue';
 import { nanoid } from 'nanoid';
+import { getNotificationJobService } from './notification-job';
 
 // Create Worker instance for "notifications" queue
 export const notificationWorker = new Worker('notifications', async (job: Job) => {
@@ -15,9 +16,28 @@ export const notificationWorker = new Worker('notifications', async (job: Job) =
       timestamp: new Date().toISOString()
     })}`);
 
-    // Simulate job processing
-    // In a real application, this would contain the actual business logic
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const notificationService = getNotificationJobService();
+    
+    // Handle different job types
+    if (job.name === 'process-notifications') {
+      // Process all pending notifications
+      await notificationService.processNotifications();
+      console.log(`[${requestId}] Processed pending notifications for job ${job.id}`);
+      
+    } else if (job.name === 'send-follow-up') {
+      // Handle individual follow-up notifications
+      const { stylistId, clientId, trigger, scheduledDate } = job.data;
+      console.log(`[${requestId}] Processing follow-up notification for stylist ${stylistId}, client ${clientId}`);
+      
+      // For now, trigger the general processing - in the future this could be more specific
+      await notificationService.processNotifications();
+      console.log(`[${requestId}] Processed follow-up notification for job ${job.id}`);
+      
+    } else {
+      // Default fallback for backwards compatibility
+      console.log(`[${requestId}] Processing default notification job ${job.id}`);
+      await notificationService.processNotifications();
+    }
 
     console.log(`[${requestId}] Job ${job.id} completed successfully`);
     
