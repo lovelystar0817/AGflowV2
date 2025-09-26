@@ -176,7 +176,7 @@ const businessHoursSchema = z.record(z.object({
 export const updateProfileSchema = z.object({
   phone: phoneValidationSchema,
   location: z.string().min(1, "Location is required"),
-  services: z.array(serviceFormSchema).min(1, "At least one service is required"),
+  services: z.array(serviceFormSchema).optional(), // Made optional for customize-app page
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
   yearsOfExperience: z.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience must be 50 or less"),
