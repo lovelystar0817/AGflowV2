@@ -118,6 +118,7 @@ export default function PublicAppPage() {
       <div className="flex justify-center pb-8">
         <StylistAppPreview
           themeId={stylist.themeId}
+          stylistId={stylist.id}
           stylistName={`${stylist.firstName} ${stylist.lastName}`}
           businessName={stylist.businessName || undefined}
           location={stylist.location || ""}
@@ -131,11 +132,6 @@ export default function PublicAppPage() {
             price: parseFloat(s.price) || 0,
             duration: s.durationMinutes
           })) || []}
-          availabilityPreview={availability ? {
-            date: availability.date,
-            isOpen: availability.isOpen,
-            timeRanges: availability.timeRanges
-          } : undefined}
         />
       </div>
 

@@ -81,7 +81,7 @@ export const insertStylistSchema = createInsertSchema(stylists).omit({
   businessName: z.string().min(1).nullable(),
   showPhone: z.boolean().default(false),
   portfolioPhotos: z.array(z.string()).max(6).default([]),
-  themeId: z.number().int().min(1).max(4).default(1),
+  themeId: z.number().int().min(1).max(8).default(1),
   appSlug: z.string().min(1),
 });
 
@@ -174,7 +174,9 @@ const businessHoursSchema = z.record(z.object({
 
 // Profile update schema for existing stylists
 export const updateProfileSchema = z.object({
-  phone: phoneValidationSchema,
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  phone: z.string().optional(),
   location: z.string().min(1, "Location is required"),
   services: z.array(serviceFormSchema).optional(), // Made optional for customize-app page
   bio: z.string().min(10, "Bio must be at least 10 characters"),
@@ -185,8 +187,9 @@ export const updateProfileSchema = z.object({
   businessName: z.string().min(1).nullable(),
   showPhone: z.boolean().default(false),
   portfolioPhotos: z.array(z.string()).max(6).default([]),
-  themeId: z.number().int().min(1).max(4).default(1),
+  themeId: z.number().int().min(1).max(8).default(1),
   appSlug: z.string().min(1),
+  services: z.array(serviceFormSchema).optional(),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;

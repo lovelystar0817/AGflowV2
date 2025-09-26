@@ -109,10 +109,20 @@ export default function AppPreviewPage() {
 
   const getAvailableSlots = () => {
     if (!availability || !availability.isOpen) return [];
-    return availability.timeRanges.map(range => `${range.start} - ${range.end}`);
+    
+    const formatTime12Hour = (time24: string) => {
+      const [hours, minutes] = time24.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
+    
+    return availability.timeRanges.map(range => 
+      `${formatTime12Hour(range.start)} - ${formatTime12Hour(range.end)}`
+    );
   };
 
-  const displayName = stylistProfile.businessName || `${stylistProfile.firstName} ${stylistProfile.lastName}`;
+  const displayName = stylistProfile?.businessName || `${stylistProfile?.firstName} ${stylistProfile?.lastName}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -132,24 +142,20 @@ export default function AppPreviewPage() {
       <div className="flex justify-center pb-8">
         <StylistAppPreview
           themeId={themeId}
-          stylistName={`${stylistProfile.firstName} ${stylistProfile.lastName}`}
-          businessName={stylistProfile.businessName || undefined}
-          location={stylistProfile.location || ""}
-          phone={stylistProfile.phone || undefined}
-          showPhone={stylistProfile.showPhone || false}
-          bio={stylistProfile.bio || ""}
-          portfolioPhotos={stylistProfile.portfolioPhotos || []}
+          stylistId={stylistProfile?.id}
+          stylistName={`${stylistProfile?.firstName} ${stylistProfile?.lastName}`}
+          businessName={stylistProfile?.businessName || undefined}
+          location={stylistProfile?.location || ""}
+          phone={stylistProfile?.phone || undefined}
+          showPhone={stylistProfile?.showPhone || false}
+          bio={stylistProfile?.bio || ""}
+          portfolioPhotos={stylistProfile?.portfolioPhotos || []}
           services={services?.items?.map(s => ({
             id: s.id,
             name: s.serviceName,
             price: parseFloat(s.price) || 0,
             duration: s.durationMinutes
           })) || []}
-          availabilityPreview={availability ? {
-            date: availability.date,
-            isOpen: availability.isOpen,
-            timeRanges: availability.timeRanges
-          } : undefined}
         />
       </div>
     </div>
