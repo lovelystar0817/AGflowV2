@@ -221,6 +221,7 @@ export default function ProfileSetupPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       
       // Check if this is first-time profile completion (user had no previous business hours)
       const isFirstTimeSetup = !user?.businessHours;

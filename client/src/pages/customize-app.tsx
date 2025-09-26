@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { ThemeGrid } from "@/components/ThemePreview";
 import { APP_THEMES } from "@/lib/appThemes";
+import { AppQRCode } from "@/components/AppQRCode";
 
 // Theme templates are now imported from ThemePreview component
 
@@ -53,6 +54,7 @@ export default function CustomizeAppPage() {
   const [selectedTheme, setSelectedTheme] = useState<number>(
     (form.getValues("themeId") as number | undefined) || 1
   );
+  const [showQRCode, setShowQRCode] = useState<boolean>(false);
 
   // Populate form with existing user data when loaded
   useEffect(() => {
@@ -87,14 +89,14 @@ export default function CustomizeAppPage() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (updatedStylist) => {
       toast({
         title: "App customization saved!",
         description: "Your app appearance has been updated successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      setLocation("/dashboard");
+      setShowQRCode(true);
     },
     onError: (error: Error) => {
       toast({
@@ -382,6 +384,25 @@ export default function CustomizeAppPage() {
             </div>
           </form>
         </Form>
+
+        {/* QR Code Display */}
+        {showQRCode && user?.appSlug && (
+          <div className="mt-8">
+            <AppQRCode
+              url={`${window.location.origin}/app/${user.appSlug}`}
+              title="Your App is Ready!"
+              description="Scan this QR code or share the link to let customers book with you."
+            />
+            <div className="flex justify-center mt-6">
+              <Button
+                onClick={() => setLocation("/dashboard")}
+                className="min-w-32"
+              >
+                Back to Dashboard
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

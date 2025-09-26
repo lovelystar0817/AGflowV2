@@ -69,7 +69,7 @@ export default function AppPreviewPage() {
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const themeIdFromQuery = searchParams.get('themeId');
   const parsedThemeId = themeIdFromQuery ? parseInt(themeIdFromQuery, 10) : null;
-  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 8) ? parsedThemeId : (stylistProfile?.themeId || 1);
+  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 4) ? parsedThemeId : (stylistProfile?.themeId || 1);
 
   // Fetch services for the current user
   const { data: services, isLoading: servicesLoading } = useQuery<{
@@ -142,14 +142,14 @@ export default function AppPreviewPage() {
       <div className="flex justify-center pb-8">
         <StylistAppPreview
           themeId={themeId}
-          stylistId={stylistProfile.id}
-          stylistName={`${stylistProfile.firstName} ${stylistProfile.lastName}`}
-          businessName={stylistProfile.businessName || undefined}
-          location={stylistProfile.location || ""}
-          phone={stylistProfile.phone || undefined}
-          showPhone={stylistProfile.showPhone || false}
-          bio={stylistProfile.bio || ""}
-          portfolioPhotos={stylistProfile.portfolioPhotos || []}
+          stylistId={stylistProfile?.id}
+          stylistName={`${stylistProfile?.firstName} ${stylistProfile?.lastName}`}
+          businessName={stylistProfile?.businessName || undefined}
+          location={stylistProfile?.location || ""}
+          phone={stylistProfile?.phone || undefined}
+          showPhone={stylistProfile?.showPhone || false}
+          bio={stylistProfile?.bio || ""}
+          portfolioPhotos={stylistProfile?.portfolioPhotos || []}
           services={services?.items?.map(s => ({
             id: s.id,
             name: s.serviceName,

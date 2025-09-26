@@ -178,6 +178,7 @@ export const updateProfileSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   phone: z.string().optional(),
   location: z.string().min(1, "Location is required"),
+  services: z.array(serviceFormSchema).optional(), // Made optional for customize-app page
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
   yearsOfExperience: z.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience must be 50 or less"),
