@@ -238,7 +238,7 @@ export function ClientsPage() {
                     <FormItem>
                       <FormLabel>Notes</FormLabel>
                       <FormControl>
-                        <Textarea {...field} rows={3} data-testid="textarea-notes" />
+                        <Textarea {...field} value={field.value || ""} rows={3} data-testid="textarea-notes" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

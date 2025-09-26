@@ -27,6 +27,10 @@ export const stylists = pgTable("stylists", {
   firstName: text("first_name"),
   lastName: text("last_name"),
   businessName: text("business_name"),
+  showPhone: boolean("show_phone").default(false),
+  portfolioPhotos: jsonb("portfolio_photos").$type<string[]>().default(sql`'[]'::jsonb`), // max 6
+  themeId: integer("theme_id").default(1).notNull(), // range validated in Zod
+  appSlug: text("app_slug").unique(),
   // Profile fields
   phone: text("phone"),
   location: text("location"),
@@ -74,6 +78,11 @@ export const insertStylistSchema = createInsertSchema(stylists).omit({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   password: passwordSchema,
+  businessName: z.string().min(1).nullable(),
+  showPhone: z.boolean().default(false),
+  portfolioPhotos: z.array(z.string()).max(6).default([]),
+  themeId: z.number().int().min(1).max(4).default(1),
+  appSlug: z.string().min(1),
 });
 
 export type InsertStylist = z.infer<typeof insertStylistSchema>;
@@ -173,6 +182,11 @@ export const updateProfileSchema = z.object({
   yearsOfExperience: z.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience must be 50 or less"),
   instagramHandle: z.string().optional(),
   bookingLink: z.string().url("Invalid URL format").optional().or(z.literal("")),
+  businessName: z.string().min(1).nullable(),
+  showPhone: z.boolean().default(false),
+  portfolioPhotos: z.array(z.string()).max(6).default([]),
+  themeId: z.number().int().min(1).max(4).default(1),
+  appSlug: z.string().min(1),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;

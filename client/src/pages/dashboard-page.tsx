@@ -91,7 +91,8 @@ import {
   TrendingUp,
   Ticket,
   Send,
-  Sparkles
+  Sparkles,
+  Palette
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -422,10 +423,13 @@ export default function DashboardPage() {
 
     return {
       id: coupon.id,
+      name: coupon.name,
       discountType: (rawDiscountType ?? coupon.type) as "percent" | "flat",
       discountValue: rawDiscountValue !== undefined && rawDiscountValue !== null
         ? rawDiscountValue.toString()
         : (coupon.amount ?? "").toString(),
+      serviceId: coupon.serviceId,
+      startDate: coupon.startDate,
       conditions: rawConditions ?? "",
       expiration: rawExpiration ?? coupon.endDate ?? "",
     };
@@ -786,6 +790,16 @@ export default function DashboardPage() {
           >
             <QrCode className="h-6 w-6 text-indigo-600" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">QR Code</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setLocation("/dashboard/customize-app")}
+            className="h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2"
+            variant="outline"
+            data-testid="action-customize-app"
+          >
+            <Palette className="h-6 w-6 text-teal-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Customize App</span>
           </Button>
         </div>
 

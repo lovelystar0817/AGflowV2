@@ -11,8 +11,11 @@ import { apiRequest } from "@/lib/queryClient";
 
 export type CouponForEditing = {
   id: string;
+  name: string;
   discountType: "percent" | "flat";
   discountValue: string;
+  serviceId: number | null;
+  startDate: string;
   conditions: string;
   expiration: string;
 };
@@ -20,7 +23,7 @@ export type CouponForEditing = {
 type EditCouponModalProps = {
   coupon: CouponForEditing;
   onClose: () => void;
-  onSave: (coupon: Coupon) => void;
+  onSave: (coupon: any) => void;
 };
 
 export function EditCouponModal({ coupon, onClose, onSave }: EditCouponModalProps) {
