@@ -59,11 +59,17 @@ export default function AppPreviewPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { user } = useAuth();
 
+  // Fetch fresh stylist profile data
+  const { data: stylistProfile, isLoading: profileLoading } = useQuery<StylistProfile>({
+    queryKey: ["/api/profile"],
+    enabled: !!user?.id,
+  });
+
   // Parse query parameters from URL
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const themeIdFromQuery = searchParams.get('themeId');
   const parsedThemeId = themeIdFromQuery ? parseInt(themeIdFromQuery, 10) : null;
-  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 4) ? parsedThemeId : (user?.themeId || 1);
+  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 8) ? parsedThemeId : (stylistProfile?.themeId || 1);
 
   // Fetch services for the current user
   const { data: services, isLoading: servicesLoading } = useQuery<{
@@ -88,6 +94,10 @@ export default function AppPreviewPage() {
     return <div>Please log in to preview your app</div>;
   }
 
+  if (profileLoading || !stylistProfile) {
+    return <LoadingSkeleton />;
+  }
+
   const handleBookNow = () => {
     // In preview mode, this could show a message or do nothing
     alert("This is a preview - booking functionality not available here");
@@ -99,10 +109,20 @@ export default function AppPreviewPage() {
 
   const getAvailableSlots = () => {
     if (!availability || !availability.isOpen) return [];
-    return availability.timeRanges.map(range => `${range.start} - ${range.end}`);
+    
+    const formatTime12Hour = (time24: string) => {
+      const [hours, minutes] = time24.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
+    
+    return availability.timeRanges.map(range => 
+      `${formatTime12Hour(range.start)} - ${formatTime12Hour(range.end)}`
+    );
   };
 
-  const displayName = user.businessName || `${user.firstName} ${user.lastName}`;
+  const displayName = stylistProfile?.businessName || `${stylistProfile?.firstName} ${stylistProfile?.lastName}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -122,24 +142,20 @@ export default function AppPreviewPage() {
       <div className="flex justify-center pb-8">
         <StylistAppPreview
           themeId={themeId}
-          stylistName={`${user.firstName} ${user.lastName}`}
-          businessName={user.businessName || undefined}
-          location={user.location || ""}
-          phone={user.phone || undefined}
-          showPhone={user.showPhone || false}
-          bio={user.bio || ""}
-          portfolioPhotos={user.portfolioPhotos || []}
+          stylistId={stylistProfile.id}
+          stylistName={`${stylistProfile.firstName} ${stylistProfile.lastName}`}
+          businessName={stylistProfile.businessName || undefined}
+          location={stylistProfile.location || ""}
+          phone={stylistProfile.phone || undefined}
+          showPhone={stylistProfile.showPhone || false}
+          bio={stylistProfile.bio || ""}
+          portfolioPhotos={stylistProfile.portfolioPhotos || []}
           services={services?.items?.map(s => ({
             id: s.id,
             name: s.serviceName,
             price: parseFloat(s.price) || 0,
             duration: s.durationMinutes
           })) || []}
-          availabilityPreview={availability ? {
-            date: availability.date,
-            isOpen: availability.isOpen,
-            timeRanges: availability.timeRanges
-          } : undefined}
         />
       </div>
     </div>

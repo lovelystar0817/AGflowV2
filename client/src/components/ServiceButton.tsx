@@ -20,11 +20,15 @@ interface ServiceButtonProps {
 }
 
 // Map APP_THEMES into handy extras for outline/ghost variants
-const themeClassExtras: Record<1 | 2 | 3 | 4, { pricePill: string; outlineBorder: string; ghostHover: string }> = {
+const themeClassExtras: Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, { pricePill: string; outlineBorder: string; ghostHover: string }> = {
   1: { pricePill: "text-white", outlineBorder: "border-[#CBA135]", ghostHover: "hover:bg-yellow-50" },
   2: { pricePill: "text-white", outlineBorder: "border-[#3B82F6]", ghostHover: "hover:bg-[#0B1220]/40" },
   3: { pricePill: "text-white", outlineBorder: "border-[#A78BFA]", ghostHover: "hover:bg-purple-50" },
   4: { pricePill: "text-white", outlineBorder: "border-[#0D9488]", ghostHover: "hover:bg-teal-50" },
+  5: { pricePill: "text-white", outlineBorder: "border-[#FFAFCC]", ghostHover: "hover:bg-pink-50" },
+  6: { pricePill: "text-white", outlineBorder: "border-[#22D3EE]", ghostHover: "hover:bg-cyan-50" },
+  7: { pricePill: "text-white", outlineBorder: "border-[#B08968]", ghostHover: "hover:bg-amber-50" },
+  8: { pricePill: "text-white", outlineBorder: "border-[#10B981]", ghostHover: "hover:bg-green-50" },
 };
 
 export function ServiceButton({ 
@@ -35,8 +39,8 @@ export function ServiceButton({
   variant = "default",
   size = "default"
 }: ServiceButtonProps) {
-  const theme = APP_THEMES[themeId as 1 | 2 | 3 | 4] ?? APP_THEMES[1];
-  const extras = themeClassExtras[(themeId as 1 | 2 | 3 | 4) || 1];
+  const theme = APP_THEMES[themeId as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8] ?? APP_THEMES[1];
+  const extras = themeClassExtras[(themeId as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) || 1];
 
   if (variant === "outline") {
     return (
@@ -53,9 +57,9 @@ export function ServiceButton({
         )}
       >
         <div className="flex-1 text-left">
-          <h4 className="font-semibold text-gray-900">{service.serviceName}</h4>
+          <h4 className={cn("font-semibold", theme.text)}>{service.serviceName}</h4>
           {service.durationMinutes && (
-            <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
+            <div className={cn("flex items-center space-x-1 text-xs mt-1", theme.subText)}>
               <Clock className="h-3 w-3" />
               <span>{service.durationMinutes} min</span>
             </div>
@@ -87,9 +91,9 @@ export function ServiceButton({
         )}
       >
         <div className="flex-1 text-left">
-          <h4 className="font-medium text-gray-700">{service.serviceName}</h4>
+          <h4 className={cn("font-medium", theme.text)}>{service.serviceName}</h4>
           {service.durationMinutes && (
-            <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
+            <div className={cn("flex items-center space-x-1 text-xs mt-1", theme.subText)}>
               <Clock className="h-3 w-3" />
               <span>{service.durationMinutes} min</span>
             </div>
@@ -118,9 +122,9 @@ export function ServiceButton({
     >
       <div className="flex items-center justify-between w-full">
         <div className="flex-1 text-left">
-          <div className="font-semibold">{service.serviceName}</div>
+          <div className={cn("font-semibold", theme.text)}>{service.serviceName}</div>
           {service.durationMinutes && (
-            <div className="flex items-center space-x-1 text-xs opacity-90 mt-1">
+            <div className={cn("flex items-center space-x-1 text-xs mt-1", theme.subText)}>
               <Clock className="h-3 w-3" />
               <span>{service.durationMinutes} min</span>
             </div>
