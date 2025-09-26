@@ -59,11 +59,17 @@ export default function AppPreviewPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { user } = useAuth();
 
+  // Fetch fresh stylist profile data from the server
+  const { data: stylistProfile, isLoading: profileLoading } = useQuery<StylistProfile>({
+    queryKey: ["/api/profile"],
+    enabled: !!user?.id,
+  });
+
   // Parse query parameters from URL
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const themeIdFromQuery = searchParams.get('themeId');
   const parsedThemeId = themeIdFromQuery ? parseInt(themeIdFromQuery, 10) : null;
-  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 4) ? parsedThemeId : (user?.themeId || 1);
+  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 4) ? parsedThemeId : (stylistProfile?.themeId || 1);
 
   // Fetch services for the current user
   const { data: services, isLoading: servicesLoading } = useQuery<{
@@ -86,6 +92,10 @@ export default function AppPreviewPage() {
 
   if (!user) {
     return <div>Please log in to preview your app</div>;
+  }
+
+  if (profileLoading || !stylistProfile) {
+    return <LoadingSkeleton />;
   }
 
   const handleBookNow = () => {
@@ -122,13 +132,13 @@ export default function AppPreviewPage() {
       <div className="flex justify-center pb-8">
         <StylistAppPreview
           themeId={themeId}
-          stylistName={`${user.firstName} ${user.lastName}`}
-          businessName={user.businessName || undefined}
-          location={user.location || ""}
-          phone={user.phone || undefined}
-          showPhone={user.showPhone || false}
-          bio={user.bio || ""}
-          portfolioPhotos={user.portfolioPhotos || []}
+          stylistName={`${stylistProfile.firstName} ${stylistProfile.lastName}`}
+          businessName={stylistProfile.businessName || undefined}
+          location={stylistProfile.location || ""}
+          phone={stylistProfile.phone || undefined}
+          showPhone={stylistProfile.showPhone || false}
+          bio={stylistProfile.bio || ""}
+          portfolioPhotos={stylistProfile.portfolioPhotos || []}
           services={services?.items?.map(s => ({
             id: s.id,
             name: s.serviceName,
