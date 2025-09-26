@@ -60,7 +60,12 @@ export default function AppPreviewPage() {
   const { user } = useAuth();
 
   // Fetch services for the current user
-  const { data: services, isLoading: servicesLoading } = useQuery<StylistService[]>({
+  const { data: services, isLoading: servicesLoading } = useQuery<{
+    items: StylistService[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>({
     queryKey: [`/api/services`],
     enabled: !!user?.id,
   });
@@ -99,7 +104,7 @@ export default function AppPreviewPage() {
       <div className="p-4">
         <Button
           variant="ghost"
-          onClick={() => setLocation("/")}
+          onClick={() => setLocation("/dashboard/customize-app")}
           className="flex items-center space-x-2"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -118,7 +123,7 @@ export default function AppPreviewPage() {
           showPhone={user.showPhone || false}
           bio={user.bio || ""}
           portfolioPhotos={user.portfolioPhotos || []}
-          services={services?.map(s => ({
+          services={services?.items?.map(s => ({
             id: s.id,
             name: s.serviceName,
             price: parseFloat(s.price) || 0,
