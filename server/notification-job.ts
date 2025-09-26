@@ -147,7 +147,7 @@ export class NotificationJobService {
           // Process each notification for this stylist
           for (const notification of pendingNotifications) {
             try {
-              await this.sendNotificationEmail(notification);
+              await this.sendNotificationEmail(notification, stylistId);
               totalSuccessCount++;
             } catch (error) {
               console.error(`Failed to process notification ${notification.id} for stylist ${stylistId}:`, error);
@@ -155,7 +155,8 @@ export class NotificationJobService {
               
               // Update notification status to failed with error message
               await storage.updateNotificationStatus(
-                notification.id, 
+                notification.id,
+                stylistId,
                 'failed', 
                 error instanceof Error ? error.message : 'Unknown error occurred'
               );
@@ -188,7 +189,8 @@ export class NotificationJobService {
       stylistFirstName: string | null;
       stylistLastName: string | null;
       type: 'thank_you' | 'follow_up' | 'rebook_prompt';
-    }
+    },
+    stylistId: string
   ): Promise<void> {
     // Validate that we have a client email
     if (!notification.clientEmail) {
@@ -226,7 +228,7 @@ export class NotificationJobService {
 
     if (result.success) {
       // Update notification status to sent
-      await storage.updateNotificationStatus(notification.id, 'sent');
+      await storage.updateNotificationStatus(notification.id, stylistId, 'sent');
       console.log(`Successfully sent notification ${notification.id} to ${notification.clientEmail}`);
     } else {
       throw new Error(result.error || 'Failed to send email');

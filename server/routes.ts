@@ -6,7 +6,8 @@ import { postLimiter } from "./index";
 import csrf from "csrf";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, stylists, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { type ActionName } from "@shared/ai-actions";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand, routePrompt } from "./openai-service";
 import { executeAction } from "./ai-handlers";
@@ -159,7 +160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const client = await storage.getClient(req.params.id);
+      const client = await storage.getClient(req.params.id, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -205,7 +206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const client = await storage.getClient(req.params.id);
+      const client = await storage.getClient(req.params.id, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -222,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
-      const updatedClient = await storage.updateClient(req.params.id, validation.data);
+      const updatedClient = await storage.updateClient(req.params.id, req.user.id, validation.data);
       res.json(updatedClient);
     } catch (error) {
       console.error("Error updating client:", error);
@@ -236,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const client = await storage.getClient(req.params.id);
+      const client = await storage.getClient(req.params.id, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -246,7 +247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
       
-      await storage.deleteClient(req.params.id);
+      await storage.deleteClient(req.params.id, req.user.id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting client:", error);
@@ -362,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isCustom: validation.data.isCustom,
       };
       
-      const updatedService = await storage.updateStylistService(serviceId, updates);
+      const updatedService = await storage.updateStylistService(serviceId, req.user.id, updates);
       res.json(updatedService);
     } catch (error) {
       console.error("Error updating service:", error);
@@ -381,7 +382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid service ID" });
       }
       
-      await storage.deleteStylistService(serviceId);
+      await storage.deleteStylistService(serviceId, req.user.id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting service:", error);
@@ -494,16 +495,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validation = updateProfileSchema.safeParse(req.body);
-      
       if (!validation.success) {
         return res.status(400).json({ error: "Invalid profile data", details: validation.error.errors });
       }
-      
       const updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data);
-      
       // Remove passwordHash from response for security
       const { passwordHash, ...stylistResponse } = updatedStylist;
-      
       res.json(stylistResponse);
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -679,7 +676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // First check if the appointment exists and belongs to this stylist
-      const appointment = await storage.getAppointment(id);
+      const appointment = await storage.getAppointment(id, req.user.id);
       if (!appointment) {
         return res.status(404).json({ error: "Appointment not found" });
       }
@@ -731,7 +728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify client belongs to the stylist
-      const client = await storage.getClient(clientId);
+      const client = await storage.getClient(clientId, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -787,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const appointment = await storage.getAppointment(req.params.id);
+      const appointment = await storage.getAppointment(req.params.id, req.user.id);
       if (!appointment) {
         return res.status(404).json({ error: "Appointment not found" });
       }
@@ -984,7 +981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove duration from update data as it's not a database field
       delete updateData.duration;
 
-      const updatedCoupon = await storage.updateCoupon(req.params.id, updateData);
+      const updatedCoupon = await storage.updateCoupon(req.params.id, req.user.id, updateData);
       res.json(updatedCoupon);
     } catch (error) {
       console.error("Error updating coupon:", error);
@@ -1104,7 +1101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Coupon not found" });
       }
       
-      const delivery = await storage.createCouponDelivery(validation.data, req);
+      const delivery = await storage.createCouponDelivery(validation.data, req.user.id);
       res.status(201).json(delivery);
     } catch (error) {
       console.error("Error creating coupon delivery:", error);
@@ -1156,7 +1153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Stylist not found" });
       }
       
-      // Return only public information
+      // Return public information including new fields
       const publicStylist = {
         id: stylist.id,
         firstName: stylist.firstName,
@@ -1166,11 +1163,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bio: stylist.bio,
         instagramHandle: stylist.instagramHandle,
         businessHours: stylist.businessHours,
+        showPhone: stylist.showPhone,
+        phone: stylist.showPhone ? stylist.phone : undefined,
+        portfolioPhotos: Array.isArray(stylist.portfolioPhotos)
+          ? stylist.portfolioPhotos.filter((p: any) => typeof p === 'string')
+          : [],
+        themeId: stylist.themeId,
+        appSlug: stylist.appSlug,
       };
-      
       res.json(publicStylist);
     } catch (error) {
       console.error("Error fetching public stylist:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/public/stylist/slug/:slug - public app page
+  app.get("/api/public/stylist/slug/:slug", async (req, res) => {
+    try {
+      const slug = req.params.slug;
+      // Find stylist by slug
+      const stylist = await db.select().from(stylists).where(eq(stylists.appSlug, slug)).limit(1);
+      if (!stylist.length) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      const s = stylist[0];
+      // Return public info for app page
+      const publicStylist = {
+        id: s.id,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        businessName: s.businessName,
+        location: s.location,
+        bio: s.bio,
+        instagramHandle: s.instagramHandle,
+        businessHours: s.businessHours,
+        showPhone: s.showPhone,
+        phone: s.showPhone ? s.phone : undefined,
+        portfolioPhotos: Array.isArray(s.portfolioPhotos)
+          ? s.portfolioPhotos.filter((p: any) => typeof p === 'string')
+          : [],
+        themeId: s.themeId,
+        appSlug: s.appSlug,
+      };
+      res.json(publicStylist);
+    } catch (error) {
+      console.error("Error fetching stylist by slug:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -1245,7 +1283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (Object.keys(updateData).length > 0) {
-          const updatedClient = await storage.updateClient(existingClient.id, updateData);
+          const updatedClient = await storage.updateClient(existingClient.id, stylistId, updateData);
           client = updatedClient;
         }
       } else {
@@ -1409,7 +1447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Confirming AI action: "${action}" for stylist ${req.user.id}`, { args, requestId });
 
       // Execute action with tenant scoping (stylistId from session, never from input)
-      const result = await executeAction(req.user.id, action, args);
+      const result = await executeAction(req.user.id, action as ActionName, args);
 
       // Log to audit trail
       try {
@@ -1500,9 +1538,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if already undone (look for a subsequent undo action)
       const undoExists = allLogs.some(log => 
-        log.createdAt > actionLog.createdAt && 
+        log.createdAt && actionLog.createdAt && log.createdAt > actionLog.createdAt && 
         log.action === 'undo' && 
-        log.args?.originalActionId === actionLogId
+        (log.args as any)?.originalActionId === actionLogId
       );
 
       if (undoExists) {
@@ -1519,10 +1557,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (actionLog.action) {
         case 'bookAppointment':
           // Cancel the booking
-          if (actionLog.result?.entity?.id) {
+          if ((actionLog.result as any)?.entity?.id) {
             try {
-              await storage.updateAppointment(actionLog.result.entity.id, req.user.id, { status: 'cancelled' });
-              undoMessage = `Cancelled appointment for ${actionLog.args.clientName}`;
+              await storage.updateAppointment((actionLog.result as any).entity.id, req.user.id, { status: 'cancelled' });
+              undoMessage = `Cancelled appointment for ${(actionLog.args as any).clientName}`;
             } catch (error) {
               return res.status(400).json({ error: "Failed to cancel appointment - it may have already been cancelled" });
             }
@@ -1533,10 +1571,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         case 'addClient':
           // Delete the created client
-          if (actionLog.result?.entity?.id) {
+          if ((actionLog.result as any)?.entity?.id) {
             try {
-              await storage.deleteClient(actionLog.result.entity.id, req.user.id);
-              undoMessage = `Deleted client ${actionLog.args.name}`;
+              await storage.deleteClient((actionLog.result as any).entity.id, req.user.id);
+              undoMessage = `Deleted client ${(actionLog.args as any).name}`;
             } catch (error) {
               return res.status(400).json({ error: "Failed to delete client - they may have appointments or have already been deleted" });
             }
@@ -1552,7 +1590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case 'reminderSingle':
         case 'remindersBulkNextDay':
           // Cancel pending notifications
-          if (actionLog.result?.entity?.id) {
+          if ((actionLog.result as any)?.entity?.id) {
             try {
               // For now, we'll just mark as cancelled - would need updateNotification method
               undoMessage = `Cancelled reminder (note: already sent reminders cannot be unsent)`;
@@ -1720,7 +1758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subject,
         scheduledAt: new Date(),
         logicRule: null
-      });
+      }, stylistId);
 
       // Return how many clients received the offer and what the offer was
       return {
@@ -2123,7 +2161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // For rescheduling, we need to find the existing appointment
         if (aiResponse.existingAppointmentId) {
           // If AI provided appointment ID, use it
-          appointmentToReschedule = await storage.getAppointment(aiResponse.existingAppointmentId);
+          appointmentToReschedule = await storage.getAppointment(aiResponse.existingAppointmentId, req.user.id);
           if (!appointmentToReschedule || appointmentToReschedule.stylistId !== req.user.id) {
             return res.status(404).json({
               success: false,
@@ -2201,7 +2239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updatedAt: new Date(),
         };
         
-        appointment = await storage.updateAppointment(appointmentToReschedule.id, updateData);
+        appointment = await storage.updateAppointment(appointmentToReschedule.id, req.user.id, updateData);
       } else {
         // Create new appointment for booking
         const appointmentData = {

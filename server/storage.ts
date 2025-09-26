@@ -86,7 +86,7 @@ export interface IStorage {
   
   // Coupon delivery management
   getCouponDeliveries(couponId: string, req: Request): Promise<CouponDelivery[]>;
-  createCouponDelivery(delivery: InsertCouponDelivery, req: Request): Promise<CouponDelivery>;
+  createCouponDelivery(delivery: InsertCouponDelivery, stylistId: string): Promise<CouponDelivery>;
   updateCouponDelivery(id: string, req: Request, updates: { sentAt?: Date }): Promise<CouponDelivery>;
   getClientVisitCount(stylistId: string, clientId: string): Promise<number>;
   
@@ -114,7 +114,7 @@ export interface IStorage {
   getNotifications(stylistId: string): Promise<Notification[]>;
   getStylistsWithPendingNotifications(): Promise<{ stylistId: string }[]>;
   claimPendingNotifications(stylistId: string, limit?: number): Promise<(Notification & { clientEmail: string | null; stylistFirstName: string | null; stylistLastName: string | null })[]>;
-  updateNotificationStatus(id: string, req: Request, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void>;
+  updateNotificationStatus(id: string, stylistId: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void>;
   
   // Analytics
   getAnalytics(stylistId: string, period: 'week' | 'month'): Promise<{
@@ -170,6 +170,10 @@ export class DatabaseStorage implements IStorage {
         lastName: insertStylist.lastName,
         passwordHash: insertStylist.password,
         businessName: insertStylist.businessName,
+        showPhone: insertStylist.showPhone,
+        portfolioPhotos: insertStylist.portfolioPhotos,
+        themeId: insertStylist.themeId,
+        appSlug: insertStylist.appSlug,
       })
       .returning();
     return stylist;
@@ -200,6 +204,11 @@ export class DatabaseStorage implements IStorage {
         yearsOfExperience: profile.yearsOfExperience,
         instagramHandle: profile.instagramHandle,
         bookingLink: profile.bookingLink,
+        businessName: profile.businessName,
+        showPhone: profile.showPhone,
+        portfolioPhotos: profile.portfolioPhotos,
+        themeId: profile.themeId,
+        appSlug: profile.appSlug,
         // Populate legacy field for backward compatibility with isProfileComplete
         servicesOffered: profile.services ? serviceNames : undefined,
       })
@@ -240,13 +249,11 @@ export class DatabaseStorage implements IStorage {
     const offset = (page - 1) * pageSize;
 
     // Build where condition
-    let whereCondition = eq(stylistServices.stylistId, stylistId);
+    const conditions = [eq(stylistServices.stylistId, stylistId)];
     if (q && q.trim()) {
-      whereCondition = and(
-        eq(stylistServices.stylistId, stylistId),
-        ilike(stylistServices.serviceName, `%${q.trim()}%`)
-      );
+      conditions.push(ilike(stylistServices.serviceName, `%${q.trim()}%`));
     }
+    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Get items with pagination
     const items = await db
@@ -332,14 +339,12 @@ export class DatabaseStorage implements IStorage {
     const offset = (page - 1) * pageSize;
 
     // Build where condition
-    let whereCondition = eq(clients.stylistId, stylistId);
+    const conditions = [eq(clients.stylistId, stylistId)];
     if (q && q.trim()) {
       const searchPattern = `%${q.trim()}%`;
-      whereCondition = and(
-        eq(clients.stylistId, stylistId),
-        sql`(${clients.firstName} ILIKE ${searchPattern} OR ${clients.lastName} ILIKE ${searchPattern} OR ${clients.email} ILIKE ${searchPattern} OR ${clients.phone} ILIKE ${searchPattern})`
-      );
+      conditions.push(sql`(${clients.firstName} ILIKE ${searchPattern} OR ${clients.lastName} ILIKE ${searchPattern} OR ${clients.email} ILIKE ${searchPattern} OR ${clients.phone} ILIKE ${searchPattern})`);
     }
+    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Get items with pagination
     const items = await db
@@ -473,19 +478,14 @@ export class DatabaseStorage implements IStorage {
     const offset = (page - 1) * pageSize;
 
     // Build where condition
-    let whereCondition = eq(appointments.stylistId, stylistId);
+    const conditions = [eq(appointments.stylistId, stylistId)];
     if (date) {
-      whereCondition = and(eq(appointments.stylistId, stylistId), eq(appointments.date, date));
+      conditions.push(eq(appointments.date, date));
     }
     if (q && q.trim()) {
-      const baseCondition = date 
-        ? and(eq(appointments.stylistId, stylistId), eq(appointments.date, date))
-        : eq(appointments.stylistId, stylistId);
-      whereCondition = and(
-        baseCondition,
-        ilike(appointments.status, `%${q.trim()}%`)
-      );
+      conditions.push(ilike(appointments.status, `%${q.trim()}%`));
     }
+    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Get items with pagination
     const items = await db
@@ -719,14 +719,12 @@ export class DatabaseStorage implements IStorage {
     const offset = (page - 1) * pageSize;
 
     // Build where condition
-    let whereCondition = eq(coupons.stylistId, stylistId);
+    const conditions = [eq(coupons.stylistId, stylistId)];
     if (q && q.trim()) {
       const searchPattern = `%${q.trim()}%`;
-      whereCondition = and(
-        eq(coupons.stylistId, stylistId),
-        sql`(${coupons.title} ILIKE ${searchPattern} OR ${coupons.description} ILIKE ${searchPattern})`
-      );
+      conditions.push(ilike(coupons.name, searchPattern));
     }
+    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Get items with pagination
     const items = await db
@@ -832,9 +830,7 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
-  async createCouponDelivery(delivery: InsertCouponDelivery, req: Request): Promise<CouponDelivery> {
-    const stylistId = getTenant(req);
-    
+  async createCouponDelivery(delivery: InsertCouponDelivery, stylistId: string): Promise<CouponDelivery> {
     // CRITICAL SECURITY: Validate that the coupon belongs to the requesting stylist
     const coupon = await this.getCoupon(delivery.couponId, stylistId);
     if (!coupon) {
@@ -869,15 +865,14 @@ export class DatabaseStorage implements IStorage {
     const [newDelivery] = await db.insert(couponDeliveries).values(delivery).returning();
     
     // Now send email messages to the targeted recipients
-    await this.processEmailDelivery(newDelivery, req);
+    await this.processEmailDelivery(newDelivery, stylistId);
     
     // Return the updated delivery record with current email status
     const [updatedDelivery] = await db.select().from(couponDeliveries).where(eq(couponDeliveries.id, newDelivery.id));
     return updatedDelivery || newDelivery;
   }
 
-  private async processEmailDelivery(delivery: CouponDelivery, req: Request): Promise<void> {
-    const stylistId = getTenant(req);
+  private async processEmailDelivery(delivery: CouponDelivery, stylistId: string): Promise<void> {
     try {
       const resendEmailService = getResendEmailService();
       
@@ -1438,9 +1433,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async updateNotificationStatus(id: string, req: Request, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void> {
-    const stylistId = getTenant(req);
-    
+  async updateNotificationStatus(id: string, stylistId: string, status: 'sent' | 'failed' | 'processing', errorMessage?: string): Promise<void> {
     const updateData: any = { 
       status,
       errorMessage: errorMessage || null
