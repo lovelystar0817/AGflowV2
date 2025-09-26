@@ -55,9 +55,15 @@ interface Availability {
 }
 
 export default function AppPreviewPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { user } = useAuth();
+
+  // Parse query parameters from URL
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const themeIdFromQuery = searchParams.get('themeId');
+  const parsedThemeId = themeIdFromQuery ? parseInt(themeIdFromQuery, 10) : null;
+  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 4) ? parsedThemeId : (user?.themeId || 1);
 
   // Fetch services for the current user
   const { data: services, isLoading: servicesLoading } = useQuery<{
@@ -76,7 +82,7 @@ export default function AppPreviewPage() {
     enabled: !!user?.id,
   });
 
-  const theme = user ? APP_THEMES[user.themeId as keyof typeof APP_THEMES] || APP_THEMES[1] : APP_THEMES[1];
+  const theme = APP_THEMES[themeId as keyof typeof APP_THEMES] || APP_THEMES[1];
 
   if (!user) {
     return <div>Please log in to preview your app</div>;
@@ -115,7 +121,7 @@ export default function AppPreviewPage() {
       {/* Stylist App Preview */}
       <div className="flex justify-center pb-8">
         <StylistAppPreview
-          themeId={user.themeId}
+          themeId={themeId}
           stylistName={`${user.firstName} ${user.lastName}`}
           businessName={user.businessName || undefined}
           location={user.location || ""}

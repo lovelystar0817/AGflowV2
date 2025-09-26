@@ -355,7 +355,7 @@ export default function CustomizeAppPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setLocation("/app/preview")}
+                onClick={() => setLocation(`/app/preview?themeId=${selectedTheme}`)}
                 className="min-w-32"
               >
                 <Smartphone className="h-4 w-4 mr-2" />

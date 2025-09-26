@@ -38,7 +38,7 @@ export function StylistAppPreview({
   availabilityPreview,
   className
 }: StylistAppPreviewProps) {
-  const theme = APP_THEMES[themeId as 1 | 2 | 3 | 4] ?? APP_THEMES[1];
+  const theme = themeId && APP_THEMES[themeId] ? APP_THEMES[themeId] : APP_THEMES[1];
   const displayName = businessName || stylistName;
 
   const safePhotos = Array.isArray(portfolioPhotos) ? portfolioPhotos : [];
