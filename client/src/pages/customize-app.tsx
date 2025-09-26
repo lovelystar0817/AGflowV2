@@ -152,7 +152,7 @@ export default function CustomizeAppPage() {
         <div className="mb-8">
           <Button
             variant="ghost"
-            onClick={() => setLocation("/dashboard")}
+            onClick={() => setLocation("/")}
             className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
