@@ -104,7 +104,7 @@ export default function AppPreviewPage() {
       <div className="p-4">
         <Button
           variant="ghost"
-          onClick={() => setLocation("/")}
+          onClick={() => setLocation("/dashboard/customize-app")}
           className="flex items-center space-x-2"
         >
           <ArrowLeft className="h-4 w-4" />

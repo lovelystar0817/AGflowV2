@@ -294,6 +294,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
+      // Check if user has services in stylist_services table
+      const existingServices = await storage.getStylistServices(req.user.id);
+      
+      // If no services in stylist_services but user has servicesOffered, migrate them
+      if (existingServices.length === 0 && req.user.servicesOffered && req.user.servicesOffered.length > 0) {
+        const defaultPrices: { [key: string]: string } = {
+          'Haircut & Styling': '50.00',
+          'Hair Coloring': '80.00',
+          'Highlights & Lowlights': '100.00',
+          'Hair Extensions': '150.00',
+          'Lashes': '25.00',
+          'Standard Cleaning': '80.00',
+          'Deep Cleaning': '120.00',
+          'Gel Manicure': '35.00',
+          'Acrylic Full Set': '60.00',
+          'Pedicure': '45.00',
+          'Blowout & Styling': '40.00',
+          'Bridal Hair': '120.00',
+          'Balayage': '150.00'
+        };
+        
+        const servicesToCreate = req.user.servicesOffered.map(serviceName => ({
+          serviceName,
+          price: defaultPrices[serviceName] || '50.00',
+          isCustom: false
+        }));
+        
+        await storage.replaceStylistServices(req.user.id, servicesToCreate);
+      }
+      
       // Parse pagination parameters
       const page = parseInt(req.query.page as string) || 1;
       const pageSize = parseInt(req.query.pageSize as string) || 20;
