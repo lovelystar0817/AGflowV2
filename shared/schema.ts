@@ -188,11 +188,27 @@ export const updateProfileSchema = z.object({
   showPhone: z.boolean().default(false),
   portfolioPhotos: z.array(z.string()).max(6).default([]),
   themeId: z.number().int().min(1).max(8).default(1),
-  appSlug: z.string().min(1),
-  services: z.array(serviceFormSchema).optional(),
+  appSlug: z.string().min(1).optional(),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+
+// Partial update schemas for separate save flows
+export const updateBusinessInfoSchema = z.object({
+  businessName: z.string().min(1).nullable(),
+  location: z.string().min(1, "Location is required"),
+  phone: z.string().optional(),
+  bio: z.string().min(10, "Bio must be at least 10 characters"),
+  showPhone: z.boolean().default(false),
+});
+
+export const updateTemplateSchema = z.object({
+  themeId: z.number().int().min(1).max(8).default(1),
+  portfolioPhotos: z.array(z.string()).max(6).default([]),
+});
+
+export type UpdateBusinessInfo = z.infer<typeof updateBusinessInfoSchema>;
+export type UpdateTemplate = z.infer<typeof updateTemplateSchema>;
 
 // Helper function to check if profile is complete
 export function isProfileComplete(stylist: Stylist): boolean {

@@ -6,7 +6,7 @@ import { postLimiter } from "./index";
 import csrf from "csrf";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, stylists, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, updateBusinessInfoSchema, updateTemplateSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, stylists, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { type ActionName } from "@shared/ai-actions";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand, routePrompt } from "./openai-service";
@@ -546,11 +546,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const validation = updateProfileSchema.safeParse(req.body);
+      // Get current stylist data
+      const currentStylist = await storage.getStylist(req.user.id);
+      if (!currentStylist) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      
+      // Determine update type based on fields present
+      const requestBody = req.body;
+      let validationSchema;
+      let validationData;
+      
+      // Check if this is a business info update
+      if ('businessName' in requestBody || 'location' in requestBody || 'phone' in requestBody || 'bio' in requestBody || 'showPhone' in requestBody) {
+        validationSchema = updateBusinessInfoSchema;
+        validationData = requestBody;
+      }
+      // Check if this is a template update
+      else if ('themeId' in requestBody || 'portfolioPhotos' in requestBody) {
+        validationSchema = updateTemplateSchema;
+        validationData = requestBody;
+        // Ensure portfolioPhotos is always an array
+        if (validationData.portfolioPhotos && !Array.isArray(validationData.portfolioPhotos)) {
+          validationData.portfolioPhotos = [];
+        }
+      }
+      // Fallback to full profile update
+      else {
+        // Merge incoming data with current data for partial updates
+        const mergedData = { ...currentStylist, ...requestBody };
+        
+        // Ensure portfolioPhotos is always an array
+        if (mergedData.portfolioPhotos && !Array.isArray(mergedData.portfolioPhotos)) {
+          mergedData.portfolioPhotos = [];
+        }
+        
+        validationSchema = updateProfileSchema;
+        validationData = mergedData;
+      }
+      
+      // Validate the data
+      const validation = validationSchema.safeParse(validationData);
       if (!validation.success) {
         return res.status(400).json({ error: "Invalid profile data", details: validation.error.errors });
       }
-      const updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data);
+      
+      // For partial updates, merge with existing data
+      let updateData;
+      if (validationSchema === updateBusinessInfoSchema || validationSchema === updateTemplateSchema) {
+        updateData = { ...currentStylist, ...validation.data };
+      } else {
+        updateData = validation.data;
+      }
+      
+      const updatedStylist = await storage.updateStylistProfile(req.user.id, updateData);
       // Remove passwordHash from response for security
       const { passwordHash, ...stylistResponse } = updatedStylist;
       res.json(stylistResponse);

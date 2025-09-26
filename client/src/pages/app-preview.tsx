@@ -69,8 +69,10 @@ export default function AppPreviewPage() {
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const themeIdFromQuery = searchParams.get('themeId');
   const parsedThemeId = themeIdFromQuery ? parseInt(themeIdFromQuery, 10) : null;
-  const themeId = (parsedThemeId && parsedThemeId >= 1 && parsedThemeId <= 4) ? parsedThemeId : (stylistProfile?.themeId || 1);
-
+  
+  // Use query parameter theme if valid, otherwise use saved themeId, fallback to theme 1
+  const themeId = (parsedThemeId && APP_THEMES[parsedThemeId]) ? parsedThemeId : (stylistProfile?.themeId || 1);
+  
   // Fetch services for the current user
   const { data: services, isLoading: servicesLoading } = useQuery<{
     items: StylistService[];
@@ -88,7 +90,7 @@ export default function AppPreviewPage() {
     enabled: !!user?.id,
   });
 
-  const theme = APP_THEMES[themeId as keyof typeof APP_THEMES] || APP_THEMES[1];
+  const theme = APP_THEMES[themeId] || APP_THEMES[1];
 
   if (!user) {
     return <div>Please log in to preview your app</div>;

@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { updateProfileSchema, type UpdateProfile } from "@shared/schema";
+import { updateProfileSchema, updateBusinessInfoSchema, updateTemplateSchema, type UpdateProfile, type UpdateBusinessInfo, type UpdateTemplate } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -80,8 +80,8 @@ export default function CustomizeAppPage() {
     }
   }, [user, form]);
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: UpdateProfile) => {
+  const updateBusinessInfoMutation = useMutation({
+    mutationFn: async (data: UpdateBusinessInfo) => {
       const response = await apiRequest("PATCH", "/api/profile", data);
       if (!response.ok) {
         const errorData = await response.json();
@@ -89,10 +89,36 @@ export default function CustomizeAppPage() {
       }
       return response.json();
     },
-    onSuccess: (updatedStylist) => {
+    onSuccess: () => {
       toast({
-        title: "App customization saved!",
-        description: "Your app appearance has been updated successfully.",
+        title: "Business info saved!",
+        description: "Your business information has been updated.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error saving business info",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateTemplateMutation = useMutation({
+    mutationFn: async (data: UpdateTemplate) => {
+      const response = await apiRequest("PATCH", "/api/profile", data);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Template saved!",
+        description: "Your app theme and portfolio have been updated.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
@@ -100,7 +126,7 @@ export default function CustomizeAppPage() {
     },
     onError: (error: Error) => {
       toast({
-        title: "Error saving customization",
+        title: "Error saving template",
         description: error.message,
         variant: "destructive",
       });
@@ -136,14 +162,23 @@ export default function CustomizeAppPage() {
     form.setValue("themeId", themeId);
   };
 
-  const onSubmit = (data: UpdateProfile) => {
-    // Include the current portfolioPhotos and themeId in the submission
-    const submissionData = {
-      ...data,
-      portfolioPhotos,
-      themeId: selectedTheme,
+  const handleSaveBusinessInfo = () => {
+    const businessData = {
+      businessName: form.getValues("businessName"),
+      location: form.getValues("location"),
+      phone: form.getValues("phone"),
+      bio: form.getValues("bio"),
+      showPhone: form.getValues("showPhone"),
     };
-    updateProfileMutation.mutate(submissionData);
+    updateBusinessInfoMutation.mutate(businessData);
+  };
+
+  const handleSaveTemplate = () => {
+    const templateData = {
+      themeId: selectedTheme,
+      portfolioPhotos,
+    };
+    updateTemplateMutation.mutate(templateData);
   };
 
   const selectedThemeData = APP_THEMES[selectedTheme];
@@ -173,7 +208,7 @@ export default function CustomizeAppPage() {
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <div className="space-y-8">
             {/* Business Information */}
             <Card>
               <CardHeader>
@@ -299,6 +334,26 @@ export default function CustomizeAppPage() {
                     </FormItem>
                   )}
                 />
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleSaveBusinessInfo}
+                    disabled={updateBusinessInfoMutation.isPending}
+                    className="min-w-32"
+                  >
+                    {updateBusinessInfoMutation.isPending ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        <span>Saving...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Check className="h-4 w-4" />
+                        <span>Save Business Info</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -365,11 +420,12 @@ export default function CustomizeAppPage() {
                 Preview My App
               </Button>
               <Button
-                type="submit"
-                disabled={updateProfileMutation.isPending}
-                className="min-w-32"
+                type="button"
+                onClick={handleSaveTemplate}
+                disabled={updateTemplateMutation.isPending}
+                className="min-w-48"
               >
-                {updateProfileMutation.isPending ? (
+                {updateTemplateMutation.isPending ? (
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                     <span>Saving...</span>
@@ -377,12 +433,12 @@ export default function CustomizeAppPage() {
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Check className="h-4 w-4" />
-                    <span>Save Changes</span>
+                    <span>Save Template & Generate QR</span>
                   </div>
                 )}
               </Button>
             </div>
-          </form>
+          </div>
         </Form>
 
         {/* QR Code Display */}

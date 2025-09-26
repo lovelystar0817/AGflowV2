@@ -79,7 +79,7 @@ export default function PublicAppPage() {
     enabled: !!stylist?.id,
   });
 
-  const theme = stylist ? APP_THEMES[stylist.themeId as keyof typeof APP_THEMES] || APP_THEMES[1] : APP_THEMES[1];
+  const theme = stylist ? APP_THEMES[stylist.themeId] || APP_THEMES[1] : APP_THEMES[1];
 
   useEffect(() => {
     if (stylistError) {
