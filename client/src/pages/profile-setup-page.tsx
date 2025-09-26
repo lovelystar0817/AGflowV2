@@ -74,6 +74,13 @@ export default function ProfileSetupPage() {
   const form = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
+      firstName: "",
+      lastName: "",
+      businessName: null,
+      showPhone: false,
+      portfolioPhotos: [],
+      themeId: 1,
+      appSlug: "",
       phone: "",
       location: "",
       services: [],
@@ -105,6 +112,13 @@ export default function ProfileSetupPage() {
 
       // Reset form with existing user data
       form.reset({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        businessName: user.businessName,
+        showPhone: user.showPhone || false,
+        portfolioPhotos: user.portfolioPhotos || [],
+        themeId: user.themeId || 1,
+        appSlug: user.appSlug || "",
         phone: user.phone || "",
         location: user.location || "",
         services: formServices,

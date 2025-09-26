@@ -6,6 +6,11 @@ import { APP_THEMES } from "@/lib/appThemes";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { ServiceButton } from "@/components/ServiceButton";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { format, addDays, subDays, isBefore, startOfDay } from "date-fns";
+import { availabilitySchema } from "@shared/schema";
 
 export interface StylistAppPreviewProps {
   themeId: number;
@@ -17,11 +22,7 @@ export interface StylistAppPreviewProps {
   bio: string;
   portfolioPhotos: string[];
   services: { id: number; name: string; price: number; duration?: number }[];
-  availabilityPreview?: {
-    date?: string;
-    isOpen?: boolean;
-    timeRanges?: { start: string; end: string }[];
-  };
+  stylistId?: string; // Optional - if provided, enables date navigation and availability fetching
   className?: string;
 }
 
@@ -35,13 +36,43 @@ export function StylistAppPreview({
   bio,
   portfolioPhotos,
   services,
-  availabilityPreview,
+  stylistId,
   className
 }: StylistAppPreviewProps) {
-  const theme = themeId && APP_THEMES[themeId] ? APP_THEMES[themeId] : APP_THEMES[1];
+  const theme = APP_THEMES[themeId] || APP_THEMES[1];
   const displayName = businessName || stylistName;
 
   const safePhotos = Array.isArray(portfolioPhotos) ? portfolioPhotos : [];
+
+  // Date navigation state
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Fetch availability for current date if stylistId is provided
+    const { data: availability } = useQuery({
+    queryKey: ["availability", stylistId, format(currentDate, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (!stylistId) return null;
+      const response = await apiRequest("GET", `/api/public/availability/${stylistId}/${format(currentDate, "yyyy-MM-dd")}`);
+      return availabilitySchema.parse(await response.json());
+    },
+    enabled: !!stylistId,
+  });
+
+  // Date navigation handlers
+  const handleNextDay = () => setCurrentDate((prev) => addDays(prev, 1));
+  
+  const handlePrevDay = () => {
+    if (!isBefore(startOfDay(currentDate), startOfDay(new Date()))) {
+      setCurrentDate((prev) => subDays(prev, 1));
+    }
+  };
+
+  const formatTime12Hour = (time24: string) => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
 
   const serviceItems = services?.map(s => ({
     id: s.id,
@@ -116,25 +147,54 @@ export function StylistAppPreview({
         <Card className={cn(theme.card)}>
           <CardContent className="p-4">
             <h3 className={cn("font-semibold mb-4", theme.text)}>Availability</h3>
+            
+            {/* Date Navigation */}
+            {stylistId && (
+              <div className="flex items-center justify-between mb-4">
+                <button 
+                  onClick={handlePrevDay} 
+                  disabled={isBefore(startOfDay(currentDate), startOfDay(new Date()))}
+                  className={cn(
+                    "p-1 rounded-full hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed",
+                    theme.text
+                  )}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className={cn("font-medium text-sm", theme.text)}>
+                  {format(currentDate, "EEEE, MMM d")}
+                </span>
+                <button 
+                  onClick={handleNextDay}
+                  className={cn(
+                    "p-1 rounded-full hover:bg-gray-100",
+                    theme.text
+                  )}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             <div className="space-y-2">
-              {availabilityPreview?.isOpen && availabilityPreview?.timeRanges?.length ? (
+              {availability?.isOpen && availability?.timeRanges?.length ? (
                 <div className="text-center">
                   <div className={cn("text-sm mb-2", theme.subText)}>Available Times</div>
                   <div className="flex flex-wrap gap-2 justify-center">
-                    {availabilityPreview.timeRanges.map((tr, idx) => (
+                    {availability.timeRanges.map((tr, idx) => (
                       <Badge
                         key={idx}
                         variant="outline"
                         className={cn("text-xs border", theme.accent)}
                       >
-                        {tr.start} - {tr.end}
+                        {formatTime12Hour(tr.start)} - {formatTime12Hour(tr.end)}
                       </Badge>
                     ))}
                   </div>
                 </div>
               ) : (
                 <div className={cn("text-center text-sm py-4", theme.subText)}>
-                  No availability for this date
+                  {stylistId ? "No availability for this date" : "Availability not available"}
                 </div>
               )}
             </div>
