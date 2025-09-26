@@ -60,7 +60,12 @@ export default function AppPreviewPage() {
   const { user } = useAuth();
 
   // Fetch services for the current user
-  const { data: services, isLoading: servicesLoading } = useQuery<StylistService[]>({
+  const { data: services, isLoading: servicesLoading } = useQuery<{
+    items: StylistService[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>({
     queryKey: [`/api/services`],
     enabled: !!user?.id,
   });
@@ -118,7 +123,7 @@ export default function AppPreviewPage() {
           showPhone={user.showPhone || false}
           bio={user.bio || ""}
           portfolioPhotos={user.portfolioPhotos || []}
-          services={services?.map(s => ({
+          services={services?.items?.map(s => ({
             id: s.id,
             name: s.serviceName,
             price: parseFloat(s.price) || 0,
