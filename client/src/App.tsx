@@ -18,6 +18,7 @@ import BusinessSettingsPage from "@/pages/business-settings-page";
 import ClientPage from "@/pages/ClientPage";
 import CustomizeAppPage from "@/pages/customize-app";
 import PublicAppPage from "@/pages/public-app-page";
+import AppPreviewPage from "@/pages/app-preview";
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <ProtectedRoute path="/clients/:id" component={ClientPage} />
       <ProtectedRoute path="/settings/business" component={BusinessSettingsPage} />
       <ProtectedRoute path="/dashboard/customize-app" component={CustomizeAppPage} />
+      <ProtectedRoute path="/app/preview" component={AppPreviewPage} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/app/:slug" component={PublicAppPage} />
       <Route path="/book/:stylistId" component={PublicBookingPage} />

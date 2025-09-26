@@ -353,6 +353,15 @@ export default function CustomizeAppPage() {
                 Cancel
               </Button>
               <Button
+                type="button"
+                variant="outline"
+                onClick={() => setLocation("/app/preview")}
+                className="min-w-32"
+              >
+                <Smartphone className="h-4 w-4 mr-2" />
+                Preview My App
+              </Button>
+              <Button
                 type="submit"
                 disabled={updateProfileMutation.isPending}
                 className="min-w-32"
