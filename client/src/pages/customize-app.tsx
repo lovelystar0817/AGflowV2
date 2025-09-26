@@ -93,6 +93,7 @@ export default function CustomizeAppPage() {
         description: "Your app appearance has been updated successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       setLocation("/dashboard");
     },
     onError: (error: Error) => {
