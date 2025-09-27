@@ -26,6 +26,7 @@ import { EditCouponModal, type CouponForEditing } from "@/components/EditCouponM
 import { AssistantShell } from "@/components/AssistantShell";
 import { MessagesPage } from "./messages-page";
 import { DiscoverJobsPage } from "./discover-jobs-page";
+import { FEATURES } from "@/config/features";
 import { isProfileComplete, serviceFormSchema, type StylistService, type Client, type Coupon } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -95,7 +96,8 @@ import {
   Send,
   Sparkles,
   MessageCircle,
-  Briefcase
+  Briefcase,
+  Palette
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -744,6 +746,19 @@ export default function DashboardPage() {
             <Users className="h-6 w-6 text-green-600" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Clients</span>
           </Button>
+          
+          {/* Customize App Button - Feature Flag Controlled */}
+          {FEATURES.customizeApp && (
+            <Button 
+              onClick={() => setLocation("/dashboard/customize-app")}
+              className="h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2"
+              variant="outline"
+              data-testid="action-customize-app"
+            >
+              <Palette className="h-6 w-6 text-purple-600" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Customize App</span>
+            </Button>
+          )}
           
           <Button 
             onClick={() => setActiveTab("services")}

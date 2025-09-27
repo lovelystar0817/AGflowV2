@@ -18,6 +18,8 @@ import BusinessSettingsPage from "@/pages/business-settings-page";
 import ClientPage from "@/pages/ClientPage";
 import MessagesPage from "@/pages/messages-page";
 import DiscoverJobsPage from "@/pages/discover-jobs-page";
+import CustomizeAppPage from "@/features/customize-app/CustomizeAppPage";
+import { FEATURES } from "@/config/features";
 
 function Router() {
   return (
@@ -32,6 +34,9 @@ function Router() {
       <ProtectedRoute path="/coupons/:id/send" component={CouponSendPage} />
       <ProtectedRoute path="/clients/:id" component={ClientPage} />
       <ProtectedRoute path="/settings/business" component={BusinessSettingsPage} />
+      {FEATURES.customizeApp && (
+        <ProtectedRoute path="/dashboard/customize-app" component={CustomizeAppPage} />
+      )}
       <Route path="/auth" component={AuthPage} />
       <Route path="/book/:stylistId" component={PublicBookingPage} />
       <Route component={NotFound} />
