@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
@@ -196,10 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Add cache headers for uploaded images
     res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
     next();
-  }, (req, res, next) => {
-    const express = require('express');
-    express.static(uploadDir)(req, res, next);
-  });
+  }, express.static(uploadDir));
 
   // Apply POST rate limiter to authenticated POST routes
   // This runs after authentication so req.user is available

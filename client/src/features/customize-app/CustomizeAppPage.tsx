@@ -5,6 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -46,6 +47,7 @@ function ThemeGrid({ selectedTheme, onThemeSelect, businessName }: ThemeGridProp
 }
 
 import { AppQRCode } from "@/components/ui/AppQRCode";
+import { StylistAppPreview } from "@/components/StylistAppPreview";
 
 export default function CustomizeAppPage() {
   const [, setLocation] = useLocation();
@@ -286,21 +288,40 @@ export default function CustomizeAppPage() {
               >
                 Cancel
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  // Preview functionality can be added later
-                  toast({
-                    title: "Preview coming soon!",
-                    description: "App preview functionality will be available in a future update.",
-                  });
-                }}
-                className="min-w-32"
-              >
-                <Smartphone className="h-4 w-4 mr-2" />
-                Preview My App
-              </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-w-32"
+                  >
+                    <Smartphone className="h-4 w-4 mr-2" />
+                    Preview My App
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>App Preview</DialogTitle>
+                  </DialogHeader>
+                  <div className="mt-4">
+                    <StylistAppPreview
+                      themeId={selectedTheme}
+                      stylistName={user?.businessName || user?.name || "Your Business"}
+                      businessName={user?.businessName}
+                      location={user?.location || "Your Location"}
+                      phone={user?.phone}
+                      showPhone={true}
+                      bio={user?.bio || "Your bio will appear here..."}
+                      portfolioPhotos={portfolioPhotos}
+                      services={[
+                        { id: 1, name: "Service 1", price: 50, duration: 60 },
+                        { id: 2, name: "Service 2", price: 75, duration: 90 }
+                      ]}
+                      className="border-0 shadow-none"
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Button
                 type="button"
                 onClick={handleSaveTemplate}
