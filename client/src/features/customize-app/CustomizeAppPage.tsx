@@ -55,14 +55,7 @@ function PortfolioGallery({ photos, onAddPhoto, onRemovePhoto, maxPhotos }: Port
   );
 }
 
-// Simple theme grid component placeholder
-const APP_THEMES = {
-  1: { name: "Professional Blue", primary: "#3b82f6" },
-  2: { name: "Elegant Purple", primary: "#8b5cf6" },
-  3: { name: "Modern Green", primary: "#10b981" },
-  4: { name: "Warm Orange", primary: "#f59e0b" },
-  5: { name: "Classic Black", primary: "#1f2937" },
-};
+import { APP_THEMES } from "@/lib/appThemes";
 
 interface ThemeGridProps {
   selectedTheme: number;
@@ -86,9 +79,10 @@ function ThemeGrid({ selectedTheme, onThemeSelect, businessName }: ThemeGridProp
               : 'border-gray-200 hover:border-gray-300'
           }`}
         >
-          <div className="w-full h-24 rounded mb-3" style={{ backgroundColor: theme.primary }} />
+          <div className={`w-full h-24 rounded mb-3 ${theme.header}`} />
           <p className="font-medium text-sm">{theme.name}</p>
-          <p className="text-xs text-muted-foreground mt-1">{businessName}</p>
+          <p className="text-xs text-muted-foreground mt-1">{theme.description}</p>
+          <p className="text-xs text-gray-400 mt-1">{businessName}</p>
         </button>
       ))}
     </div>
