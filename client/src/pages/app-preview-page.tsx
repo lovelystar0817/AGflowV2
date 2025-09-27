@@ -88,8 +88,22 @@ export default function AppPreviewPage() {
     return <div>Please log in to preview your app</div>;
   }
 
-  if (profileLoading || !stylistProfile) {
+  if (profileLoading) {
     return <LoadingSkeleton />;
+  }
+
+  if (!stylistProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Profile Not Found</h2>
+          <p className="text-gray-600 mb-4">Please complete your profile setup to preview your app.</p>
+          <Button onClick={() => setLocation("/profile-setup")}>
+            Complete Profile Setup
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
