@@ -9,51 +9,7 @@ import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings } from "lucide-
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 
-// Note: These components may need to be stubbed or implemented if missing
-// PortfolioGallery, ThemeGrid, APP_THEMES, and AppQRCode were from legacy
-// For now, we'll implement basic placeholders
-
-interface Portfolio {
-  photos: string[];
-  onAddPhoto: () => void;
-  onRemovePhoto: (index: number) => void;
-  maxPhotos: number;
-  editable: boolean;
-  aspectRatio: string;
-  showIndicators: boolean;
-}
-
-// Simple portfolio component placeholder
-function PortfolioGallery({ photos, onAddPhoto, onRemovePhoto, maxPhotos }: Portfolio) {
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {photos.map((photo, index) => (
-          <div key={index} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
-            <img src={photo} alt={`Portfolio ${index + 1}`} className="w-full h-full object-cover" />
-            <button
-              onClick={() => onRemovePhoto(index)}
-              className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        {photos.length < maxPhotos && (
-          <button
-            onClick={onAddPhoto}
-            className="aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:bg-gray-100"
-          >
-            <div className="text-center">
-              <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <span className="text-sm text-gray-500">Add Photo</span>
-            </div>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+import { PortfolioGallery } from "@/components/PortfolioGallery";
 
 import { APP_THEMES } from "@/lib/appThemes";
 

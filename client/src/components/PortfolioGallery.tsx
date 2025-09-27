@@ -30,6 +30,7 @@ export function PortfolioGallery({
   const photosSafe = Array.isArray(photos) ? photos : [];
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const photoRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -42,47 +43,83 @@ export function PortfolioGallery({
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1);
   };
 
+  // Update current index based on which photo is most visible
+  const updateCurrentIndex = () => {
+    if (!scrollContainerRef.current || photosSafe.length === 0) return;
+    
+    const container = scrollContainerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const containerCenter = containerRect.left + containerRect.width / 2;
+    
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    
+    photoRefs.current.forEach((photoRef, index) => {
+      if (photoRef && index < photosSafe.length) {
+        const photoRect = photoRef.getBoundingClientRect();
+        const photoCenter = photoRect.left + photoRect.width / 2;
+        const distance = Math.abs(photoCenter - containerCenter);
+        
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
+        }
+      }
+    });
+    
+    setCurrentIndex(closestIndex);
+  };
+
   useEffect(() => {
     updateScrollButtons();
+    updateCurrentIndex();
     const container = scrollContainerRef.current;
     if (container) {
-      container.addEventListener('scroll', updateScrollButtons);
-      return () => container.removeEventListener('scroll', updateScrollButtons);
+      const handleScroll = () => {
+        updateScrollButtons();
+        updateCurrentIndex();
+      };
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
     }
   }, [photosSafe]);
 
   const scrollToIndex = (index: number) => {
-    if (!scrollContainerRef.current) return;
+    if (!scrollContainerRef.current || photosSafe.length === 0 || !photoRefs.current[index]) return;
     
     const container = scrollContainerRef.current;
-  const itemWidth = container.scrollWidth / Math.max(photosSafe.length, 1);
-    container.scrollTo({
-      left: itemWidth * index,
-      behavior: 'smooth'
-    });
-    setCurrentIndex(index);
+    const targetPhoto = photoRefs.current[index];
+    
+    if (targetPhoto) {
+      const containerRect = container.getBoundingClientRect();
+      const photoRect = targetPhoto.getBoundingClientRect();
+      
+      // Calculate how much to scroll to center the target photo
+      const containerCenter = containerRect.width / 2;
+      const photoCenter = photoRect.left - containerRect.left + photoRect.width / 2;
+      const scrollOffset = photoCenter - containerCenter;
+      
+      container.scrollBy({
+        left: scrollOffset,
+        behavior: 'smooth'
+      });
+    }
   };
 
   const scrollLeft = () => {
-    if (!scrollContainerRef.current) return;
+    if (!scrollContainerRef.current || photosSafe.length === 0) return;
     
-    const container = scrollContainerRef.current;
-    const scrollAmount = container.clientWidth * 0.8;
-    container.scrollBy({
-      left: -scrollAmount,
-      behavior: 'smooth'
-    });
+    // Find the previous photo to center
+    const prevIndex = Math.max(0, currentIndex - 1);
+    scrollToIndex(prevIndex);
   };
 
   const scrollRight = () => {
-    if (!scrollContainerRef.current) return;
+    if (!scrollContainerRef.current || photosSafe.length === 0) return;
     
-    const container = scrollContainerRef.current;
-    const scrollAmount = container.clientWidth * 0.8;
-    container.scrollBy({
-      left: scrollAmount,
-      behavior: 'smooth'
-    });
+    // Find the next photo to center
+    const nextIndex = Math.min(photosSafe.length - 1, currentIndex + 1);
+    scrollToIndex(nextIndex);
   };
 
   const getAspectRatioClass = () => {
@@ -116,6 +153,7 @@ export function PortfolioGallery({
         {photosSafe.map((photo, index) => (
           <div
             key={index}
+            ref={(el) => (photoRefs.current[index] = el)}
             className={cn(
               "relative flex-shrink-0 group",
               getAspectRatioClass(),
