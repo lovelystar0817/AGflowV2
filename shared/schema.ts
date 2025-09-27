@@ -44,6 +44,10 @@ export const stylists = pgTable("stylists", {
   defaultAppointmentDuration: integer("default_appointment_duration").default(30),
   preferredSlotFormat: integer("preferred_slot_format").default(30),
   showPublicly: boolean("show_publicly").default(true),
+  // App Customization fields
+  themeId: integer("theme_id").default(1),
+  portfolioPhotos: json("portfolio_photos").$type<string[]>().default(sql`'[]'::json`),
+  appSlug: text("app_slug").unique(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -176,6 +180,14 @@ export const updateProfileSchema = z.object({
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+
+// Template update schema for app customization
+export const updateTemplateSchema = z.object({
+  themeId: z.number().int().min(1).max(8).optional(),
+  portfolioPhotos: z.array(z.string().url()).max(6, "Maximum 6 portfolio photos allowed").optional(),
+});
+
+export type UpdateTemplate = z.infer<typeof updateTemplateSchema>;
 
 // Helper function to check if profile is complete
 export function isProfileComplete(stylist: Stylist): boolean {
