@@ -52,7 +52,7 @@ export function StylistAppPreview({
     queryKey: ["availability", stylistId, format(currentDate, "yyyy-MM-dd")],
     queryFn: async () => {
       if (!stylistId) return null;
-      const response = await apiRequest("GET", `/api/public/availability/${stylistId}/${format(currentDate, "yyyy-MM-dd")}`);
+      const response = await apiRequest("GET", `/api/availability/${format(currentDate, "yyyy-MM-dd")}`);
       return availabilitySchema.parse(await response.json());
     },
     enabled: !!stylistId,

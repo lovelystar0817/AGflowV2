@@ -84,14 +84,6 @@ export default function AppPreviewPage() {
     enabled: !!user?.id,
   });
 
-  // Fetch availability for selected date
-  const { data: availability } = useQuery<Availability>({
-    queryKey: [`/api/availability/${format(selectedDate, 'yyyy-MM-dd')}`],
-    enabled: !!user?.id,
-  });
-
-  const theme = APP_THEMES[themeId] || APP_THEMES[1];
-
   if (!user) {
     return <div>Please log in to preview your app</div>;
   }
@@ -99,32 +91,6 @@ export default function AppPreviewPage() {
   if (profileLoading || !stylistProfile) {
     return <LoadingSkeleton />;
   }
-
-  const handleBookNow = () => {
-    // In preview mode, this could show a message or do nothing
-    alert("This is a preview - booking functionality not available here");
-  };
-
-  const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-  };
-
-  const getAvailableSlots = () => {
-    if (!availability || !availability.isOpen) return [];
-    
-    const formatTime12Hour = (time24: string) => {
-      const [hours, minutes] = time24.split(':').map(Number);
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const hours12 = hours % 12 || 12;
-      return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-    };
-    
-    return availability.timeRanges.map(range => 
-      `${formatTime12Hour(range.start)} - ${formatTime12Hour(range.end)}`
-    );
-  };
-
-  const displayName = stylistProfile?.businessName || `${stylistProfile?.firstName} ${stylistProfile?.lastName}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
