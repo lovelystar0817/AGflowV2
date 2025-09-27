@@ -165,11 +165,11 @@ export default function ClientPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/clients")}
             data-testid="button-back"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
+            Back
           </Button>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             {client.firstName} {client.lastName}

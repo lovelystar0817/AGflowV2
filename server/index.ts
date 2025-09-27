@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import csrf from "csrf";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
-// Note: notification job service is dynamically imported only when Redis is configured
+import { getNotificationJobService } from "./notification-job";
 
 // Initialize logger
 export const logger = pino();
@@ -49,8 +49,7 @@ export const postLimiter = rateLimit({
       return `stylist:${req.user.id}`;
     }
     // Use proper IPv6-safe IP key generation
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
+    return ipKeyGenerator(req as any);
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -150,19 +149,10 @@ app.use((req: RequestWithId, res: Response, next: NextFunction) => {
     logger.info({ port }, "Server listening");
 
     // Start the notification job service for background email processing
-    // Only when a Redis URL is provided to avoid connection errors in local/dev
-    if (process.env.REDIS_URL) {
-      import('./notification-job').then(({ getNotificationJobService }) => {
-        const notificationJobService = getNotificationJobService();
-        notificationJobService.start();
-        logger.info(
-          "Notification job service started - processing notifications every hour",
-        );
-      }).catch((err) => {
-        logger.error({ err }, 'Failed to start notification job service');
-      });
-    } else {
-      logger.info('Skipping notification job service startup (REDIS_URL not set)');
-    }
+    const notificationJobService = getNotificationJobService();
+    notificationJobService.start();
+    logger.info(
+      "Notification job service started - processing notifications every hour",
+    );
   });
 })();

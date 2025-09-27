@@ -23,7 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send, Users, User, Brain, Calendar, CheckCircle, MessageSquare } from "lucide-react";
+import { ArrowLeft, Send, Users, User, Brain, Calendar, MessageSquare } from "lucide-react";
 import { z } from "zod";
 
 type CouponDeliveryFormData = z.infer<typeof couponDeliveryFormSchema>;

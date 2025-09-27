@@ -27,10 +27,6 @@ export const stylists = pgTable("stylists", {
   firstName: text("first_name"),
   lastName: text("last_name"),
   businessName: text("business_name"),
-  showPhone: boolean("show_phone").default(false),
-  portfolioPhotos: jsonb("portfolio_photos").$type<string[]>().default(sql`'[]'::jsonb`), // max 6
-  themeId: integer("theme_id").default(1).notNull(), // range validated in Zod
-  appSlug: text("app_slug").unique(),
   // Profile fields
   phone: text("phone"),
   location: text("location"),
@@ -78,11 +74,6 @@ export const insertStylistSchema = createInsertSchema(stylists).omit({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   password: passwordSchema,
-  businessName: z.string().min(1).nullable(),
-  showPhone: z.boolean().default(false),
-  portfolioPhotos: z.array(z.string()).max(6).default([]),
-  themeId: z.number().int().min(1).max(8).default(1),
-  appSlug: z.string().min(1),
 });
 
 export type InsertStylist = z.infer<typeof insertStylistSchema>;
@@ -174,41 +165,17 @@ const businessHoursSchema = z.record(z.object({
 
 // Profile update schema for existing stylists
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  phone: z.string().optional(),
+  phone: phoneValidationSchema,
   location: z.string().min(1, "Location is required"),
-  services: z.array(serviceFormSchema).optional(), // Made optional for customize-app page
+  services: z.array(serviceFormSchema).min(1, "At least one service is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
   yearsOfExperience: z.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience must be 50 or less"),
   instagramHandle: z.string().optional(),
   bookingLink: z.string().url("Invalid URL format").optional().or(z.literal("")),
-  businessName: z.string().min(1).nullable(),
-  showPhone: z.boolean().default(false),
-  portfolioPhotos: z.array(z.string()).max(6).default([]),
-  themeId: z.number().int().min(1).max(8).default(1),
-  appSlug: z.string().min(1).optional(),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
-
-// Partial update schemas for separate save flows
-export const updateBusinessInfoSchema = z.object({
-  businessName: z.string().min(1).nullable(),
-  location: z.string().min(1, "Location is required"),
-  phone: z.string().optional(),
-  bio: z.string().min(10, "Bio must be at least 10 characters"),
-  showPhone: z.boolean().default(false),
-});
-
-export const updateTemplateSchema = z.object({
-  themeId: z.number().int().min(1).max(8).default(1),
-  portfolioPhotos: z.array(z.string()).max(6).default([]),
-});
-
-export type UpdateBusinessInfo = z.infer<typeof updateBusinessInfoSchema>;
-export type UpdateTemplate = z.infer<typeof updateTemplateSchema>;
 
 // Helper function to check if profile is complete
 export function isProfileComplete(stylist: Stylist): boolean {

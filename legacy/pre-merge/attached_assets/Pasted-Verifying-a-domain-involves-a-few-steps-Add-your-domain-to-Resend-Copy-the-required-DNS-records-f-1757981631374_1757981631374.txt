@@ -1,0 +1,53 @@
+Verifying a domain involves a few steps:
+Add your domain to Resend
+Copy the required DNS records from Resend
+Add these records to your DNS provider
+Wait for verification to complete
+When this process is completed correctly, your domain will often verify within 15 minutes of adding the DNS records. What should you do if your domain isn’t verifying?
+If your are having any conflict issues with the MX records, checkout this guide.
+​
+Common verification issues
+When your domain doesn’t verify as expected, it’s typically due to DNS configuration issues. This guide will help you troubleshoot and resolve common verification problems.
+​
+Incorrect DNS records
+Usually when a domain doesn’t verify, it’s because the DNS records were not added correctly. Here’s how to check:
+Confirm that you’ve added all required records (DKIM, SPF, and MX)
+Verify that the records are added at the correct location (the send subdomain, not the root domain)
+Check that record values match exactly what Resend generated for you
+Use a DNS lookup tool like dns.email to verify your records are publicly visible
+​
+DNS provider auto-appending domain names
+Some DNS providers automatically append your domain name to record MX values, causing verification failures.
+Problem:
+Your MX record appears as:
+feedback-smtp.eu-west-1.amazonses.com.yourdomain.com
+Instead of:
+feedback-smtp.eu-west-1.amazonses.com
+Solution:
+In your DNS provider, add a trailing period (dot) at the end of the record value:
+feedback-smtp.eu-west-1.amazonses.com.
+The trailing period tells your DNS provider that this is a fully qualified domain name that should not be modified.
+Note: The region your domain is added to is in this MX record. It may be us-east-1, eu-west-1, ap-northeast-1, or sa-east-1 depending on the region.
+​
+Nameserver conflicts
+If your domain’s DNS is managed in multiple places (e.g., Vercel, Cloudflare, your domain registrar), you might be adding records in the wrong location.
+How to check: Run a nameserver lookup for your domain using a tool like dns.email to see which provider actually controls your DNS. Add the Resend records at that provider, not elsewhere.
+​
+DKIM record value mismatches
+The DKIM record must match exactly what Resend generated. Common mistakes include:
+Adding extra quotes or spaces
+Truncating long values
+Adding SPF information to the DKIM record
+Not copying the entire value
+Always copy and paste the exact value from Resend’s domain configuration page.
+​
+DNS Propagation
+After adding or correcting your DNS records:
+DNS changes can take up to 72 hours to propagate globally (though often much faster)
+Use the “Restart verification” button in the Resend dashboard to trigger a fresh verification check
+If verification still fails after 24 hours, use dns.email to check if your records are visible publicly
+​
+Need more help?
+If you’ve followed all the steps above and your domain still isn’t verifying, contact Resend support with:
+Your domain name
+Screenshots of your DNS configuration

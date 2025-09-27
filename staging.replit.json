@@ -1,0 +1,21 @@
+{
+  "name": "hair-stylist-platform-staging",
+  "description": "Hair Stylist Business Management Platform - Staging Environment",
+  "language": "nodejs",
+  "env": "staging",
+  "run": "NODE_ENV=staging npm run dev:staging",
+  "modules": ["nodejs-20"],
+  "secrets": [
+    "STAGING_DATABASE_URL",
+    "STAGING_RESEND_API_KEY", 
+    "STAGING_OPENAI_API_KEY",
+    "STAGING_SESSION_SECRET",
+    "STAGING_DOMAIN",
+    "STAGING_EMAIL_DOMAIN"
+  ],
+  "deployment": {
+    "target": "autoscale",
+    "run": "NODE_ENV=staging npm run start:staging",
+    "build": "npm run build"
+  }
+}
