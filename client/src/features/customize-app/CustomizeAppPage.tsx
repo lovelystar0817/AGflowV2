@@ -5,49 +5,15 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-
 import { PortfolioGallery } from "@/components/PortfolioGallery";
-
+import { ThemeGrid } from "@/components/ThemePreview";
 import { APP_THEMES } from "@/lib/appThemes";
-
-interface ThemeGridProps {
-  selectedTheme: number;
-  onThemeSelect: (themeId: number) => void;
-  businessName: string;
-  location: string;
-  bio: string;
-  showMockup: boolean;
-}
-
-function ThemeGrid({ selectedTheme, onThemeSelect, businessName }: ThemeGridProps) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-      {Object.entries(APP_THEMES).map(([id, theme]) => (
-        <button
-          key={id}
-          onClick={() => onThemeSelect(parseInt(id))}
-          className={`p-4 rounded-lg border-2 text-left transition-all ${
-            selectedTheme === parseInt(id)
-              ? 'border-primary bg-primary/5'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <div className={`w-full h-24 rounded mb-3 ${theme.header}`} />
-          <p className="font-medium text-sm">{theme.name}</p>
-          <p className="text-xs text-muted-foreground mt-1">{theme.description}</p>
-          <p className="text-xs text-gray-400 mt-1">{businessName}</p>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 import { AppQRCode } from "@/components/ui/AppQRCode";
-import { StylistAppPreview } from "@/components/StylistAppPreview";
+
+// Theme templates are now imported from ThemePreview component
 
 export default function CustomizeAppPage() {
   const [, setLocation] = useLocation();
