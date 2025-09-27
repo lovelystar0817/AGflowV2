@@ -122,8 +122,19 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(sanitizeUser(req.user!));
+    
+    // Fetch fresh user data from database to include latest customization fields
+    try {
+      const freshUser = await storage.getStylist(req.user!.id);
+      if (!freshUser) {
+        return res.sendStatus(404);
+      }
+      res.json(sanitizeUser(freshUser));
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      res.sendStatus(500);
+    }
   });
 }
