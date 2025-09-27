@@ -15,6 +15,13 @@ import { getNotificationJobService } from "./notification-job";
 import { db } from "./db";
 import { and, eq } from "drizzle-orm";
 import { registerStagingRoutes } from "./routes-staging";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { promisify } from "util";
+
+const writeFile = promisify(fs.writeFile);
+const mkdir = promisify(fs.mkdir);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Register staging routes if in staging environment
@@ -121,6 +128,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     next();
+  });
+
+  // Configure multer for file uploads
+  const uploadDir = path.join(process.cwd(), 'uploads');
+  
+  // Create uploads directory if it doesn't exist
+  try {
+    await mkdir(uploadDir, { recursive: true });
+  } catch (error) {
+    console.log('Upload directory already exists or error creating it');
+  }
+
+  // Configure multer storage
+  const multerStorage = multer.memoryStorage();
+  const upload = multer({
+    storage: multerStorage,
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+      files: 1
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|gif|webp/;
+      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedTypes.test(file.mimetype);
+      
+      if (mimetype && extname) {
+        return cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    }
+  });
+
+  // File upload route
+  app.post('/api/upload', upload.single('photo'), async (req: Request & { user?: any }, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 15);
+      const extension = path.extname(req.file.originalname);
+      const filename = `portfolio_${req.user.id}_${timestamp}_${randomId}${extension}`;
+      const filepath = path.join(uploadDir, filename);
+
+      // Save file to disk
+      await writeFile(filepath, req.file.buffer);
+
+      // Return the file URL
+      const fileUrl = `/uploads/${filename}`;
+      res.json({ url: fileUrl });
+    } catch (error) {
+      console.error('File upload error:', error);
+      res.status(500).json({ error: 'Failed to upload file' });
+    }
+  });
+
+  // Serve uploaded files statically with caching
+  app.use('/uploads', (req, res, next) => {
+    // Add cache headers for uploaded images
+    res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
+    next();
+  }, (req, res, next) => {
+    const express = require('express');
+    express.static(uploadDir)(req, res, next);
   });
 
   // Apply POST rate limiter to authenticated POST routes

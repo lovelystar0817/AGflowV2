@@ -107,11 +107,66 @@ export default function CustomizeAppPage() {
       return;
     }
     
-    // In a real implementation, this would open a file picker
-    // For now, we'll just add a placeholder URL
-    const newPhoto = `https://images.unsplash.com/photo-${Date.now()}?w=400&h=400&fit=crop`;
-    const updatedPhotos = [...portfolioPhotos, newPhoto];
-    setPortfolioPhotos(updatedPhotos);
+    // Create file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please choose an image smaller than 5MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please choose an image file.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        // Upload the file
+        const formData = new FormData();
+        formData.append('photo', file);
+
+        const response = await apiRequest('POST', '/api/upload', formData);
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const { url } = await response.json();
+        
+        // Add the uploaded photo URL to the portfolio
+        const updatedPhotos = [...portfolioPhotos, url];
+        setPortfolioPhotos(updatedPhotos);
+
+        toast({
+          title: "Photo uploaded successfully!",
+          description: "Your portfolio photo has been added.",
+        });
+      } catch (error) {
+        console.error('Upload error:', error);
+        toast({
+          title: "Upload failed",
+          description: "There was an error uploading your photo. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    // Trigger file picker
+    input.click();
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -183,7 +238,7 @@ export default function CustomizeAppPage() {
               <CardHeader>
                 <CardTitle>Portfolio Photos</CardTitle>
                 <CardDescription>
-                  Showcase your work with up to 6 photos (demo functionality - file upload coming soon).
+                  Showcase your work with up to 6 photos. Upload high-quality images to highlight your best work.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -197,7 +252,7 @@ export default function CustomizeAppPage() {
                   showIndicators={true}
                 />
                 <p className="text-sm text-gray-500 mt-4">
-                  {portfolioPhotos.length}/6 photos uploaded. Note: This is a demo - actual file upload coming soon!
+                  {portfolioPhotos.length}/6 photos uploaded. Images are saved to your portfolio and will appear in your public booking app.
                 </p>
               </CardContent>
             </Card>
