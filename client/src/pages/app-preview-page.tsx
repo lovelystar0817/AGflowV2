@@ -59,9 +59,9 @@ export default function AppPreviewPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { user } = useAuth();
 
-  // Fetch fresh stylist profile data
+  // Fetch fresh stylist profile data from user endpoint
   const { data: stylistProfile, isLoading: profileLoading } = useQuery<StylistProfile>({
-    queryKey: ["/api/profile"],
+    queryKey: ["/api/user"],
     enabled: !!user?.id,
   });
 
