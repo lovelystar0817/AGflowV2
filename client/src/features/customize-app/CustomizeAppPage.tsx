@@ -89,25 +89,7 @@ function ThemeGrid({ selectedTheme, onThemeSelect, businessName }: ThemeGridProp
   );
 }
 
-// Simple QR code component placeholder
-function AppQRCode({ url, title, description }: { url: string; title: string; description: string }) {
-  return (
-    <Card className="text-center">
-      <CardHeader>
-        <CardTitle className="text-green-600">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="w-48 h-48 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
-          <div className="text-gray-500">QR Code Placeholder</div>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Share this link: <span className="font-mono text-primary">{url}</span>
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
+import { AppQRCode } from "@/components/ui/AppQRCode";
 
 export default function CustomizeAppPage() {
   const [, setLocation] = useLocation();
