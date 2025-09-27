@@ -19,6 +19,7 @@ import ClientPage from "@/pages/ClientPage";
 import MessagesPage from "@/pages/messages-page";
 import DiscoverJobsPage from "@/pages/discover-jobs-page";
 import CustomizeAppPage from "@/features/customize-app/CustomizeAppPage";
+import AppPreviewPage from "@/pages/app-preview-page";
 import { FEATURES } from "@/config/features";
 
 function Router() {
@@ -36,6 +37,9 @@ function Router() {
       <ProtectedRoute path="/settings/business" component={BusinessSettingsPage} />
       {FEATURES.customizeApp && (
         <ProtectedRoute path="/dashboard/customize-app" component={CustomizeAppPage} />
+      )}
+      {FEATURES.customizeApp && (
+        <ProtectedRoute path="/app/preview" component={AppPreviewPage} />
       )}
       <Route path="/auth" component={AuthPage} />
       <Route path="/book/:stylistId" component={PublicBookingPage} />
