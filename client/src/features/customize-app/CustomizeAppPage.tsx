@@ -13,6 +13,7 @@ import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { ThemeGrid } from "@/components/ThemePreview";
 import { APP_THEMES } from "@/lib/appThemes";
 import { AppQRCode } from "@/components/ui/AppQRCode";
+import { StylistAppPreview } from "@/components/StylistAppPreview";
 
 // Theme templates are now imported from ThemePreview component
 
