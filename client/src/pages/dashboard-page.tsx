@@ -24,6 +24,8 @@ import { ProfileCompletionCard } from "@/components/profile-completion-card";
 import QRCodeSection from "@/components/qr-code-section";
 import { EditCouponModal, type CouponForEditing } from "@/components/EditCouponModal";
 import { AssistantShell } from "@/components/AssistantShell";
+import { MessagesPage } from "./messages-page";
+import { DiscoverJobsPage } from "./discover-jobs-page";
 import { isProfileComplete, serviceFormSchema, type StylistService, type Client, type Coupon } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -92,7 +94,8 @@ import {
   Ticket,
   Send,
   Sparkles,
-  Palette
+  MessageCircle,
+  Briefcase
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -423,13 +426,10 @@ export default function DashboardPage() {
 
     return {
       id: coupon.id,
-      name: coupon.name,
       discountType: (rawDiscountType ?? coupon.type) as "percent" | "flat",
       discountValue: rawDiscountValue !== undefined && rawDiscountValue !== null
         ? rawDiscountValue.toString()
         : (coupon.amount ?? "").toString(),
-      serviceId: coupon.serviceId,
-      startDate: coupon.startDate,
       conditions: rawConditions ?? "",
       expiration: rawExpiration ?? coupon.endDate ?? "",
     };
@@ -588,30 +588,31 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background animate-fade-in">
       {/* Top Navigation */}
-      <header className="bg-card border-b border-border">
+      <header className="bg-card border-b border-border shadow-sm transition-enhanced">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo and Business Name */}
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 bg-primary rounded-full flex items-center justify-center">
-                <Scissors className="h-5 w-5 text-primary-foreground" />
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <div className="h-8 w-8 sm:h-10 sm:w-10 bg-primary rounded-full flex items-center justify-center shadow-enhanced animate-pulse-glow">
+                <Scissors className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
               </div>
-              <div>
-                <h1 className="text-xl font-semibold text-card-foreground">StylistPro</h1>
-                <p className="text-sm text-muted-foreground" data-testid="text-business-name">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-semibold text-card-foreground truncate">StylistPro</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate" data-testid="text-business-name">
                   {user?.businessName || "Your Business"}
                 </p>
               </div>
             </div>
 
             {/* User Menu */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2 right-2 h-2 w-2 bg-destructive rounded-full"></span>
+              <Button variant="ghost" size="icon" className="relative transition-enhanced hover-lift h-8 w-8 sm:h-10 sm:w-10" data-testid="button-notifications">
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="absolute top-1 right-1 sm:top-2 sm:right-2 h-2 w-2 bg-destructive rounded-full animate-ping"></span>
+                <span className="absolute top-1 right-1 sm:top-2 sm:right-2 h-2 w-2 bg-destructive rounded-full"></span>
               </Button>
 
               {/* User Avatar and Dropdown */}
@@ -657,7 +658,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Profile Completion Card */}
         {user && showProfileCompletion && (
           <ProfileCompletionCard 
@@ -679,7 +680,7 @@ export default function DashboardPage() {
             <Card className="rounded-2xl bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-md border-0 mt-6">
               <CardContent className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Today's Snapshot</h2>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
                   {stats.map((stat, index) => (
                     <Tooltip key={index}>
                       <TooltipTrigger asChild>
@@ -793,13 +794,27 @@ export default function DashboardPage() {
           </Button>
           
           <Button 
-            onClick={() => setLocation("/dashboard/customize-app")}
-            className="h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2"
+            onClick={() => setActiveTab("messages")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "messages" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
             variant="outline"
-            data-testid="action-customize-app"
+            data-testid="action-messages"
           >
-            <Palette className="h-6 w-6 text-teal-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Customize App</span>
+            <MessageCircle className="h-6 w-6 text-blue-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Messages</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("discover-jobs")}
+            className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
+              activeTab === "discover-jobs" ? "ring-2 ring-primary bg-primary/5" : ""
+            }`}
+            variant="outline"
+            data-testid="action-discover-jobs"
+          >
+            <Briefcase className="h-6 w-6 text-green-600" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Discover Jobs</span>
           </Button>
         </div>
 
@@ -1163,6 +1178,20 @@ export default function DashboardPage() {
                 {user && <QRCodeSection user={user} />}
               </div>
             </Card>
+          )}
+
+          {/* Messages Content */}
+          {activeTab === "messages" && (
+            <div className="h-[calc(100vh-200px)]">
+              <MessagesPage />
+            </div>
+          )}
+
+          {/* Discover Jobs Content */}
+          {activeTab === "discover-jobs" && (
+            <div className="h-[calc(100vh-200px)]">
+              <DiscoverJobsPage />
+            </div>
           )}
         </div>
 

@@ -31,6 +31,12 @@ export class NotificationJobService {
    * Enqueue notification processing job with idempotency
    */
   private async enqueueProcessingJob(): Promise<void> {
+    // Skip if Redis/queue is not available
+    if (!notificationsQueue) {
+      console.log('⚠️ Redis queue not available, skipping notification job enqueue');
+      return;
+    }
+
     const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     const jobId = `notification-processing:${date}:${Math.floor(Date.now() / (60 * 60 * 1000))}`; // Hour granularity
     
@@ -67,6 +73,12 @@ export class NotificationJobService {
     scheduledDate: string,
     notificationData: any
   ): Promise<void> {
+    // Skip if Redis/queue is not available
+    if (!notificationsQueue) {
+      console.log('⚠️ Redis queue not available, skipping follow-up notification enqueue');
+      return;
+    }
+
     const jobId = `${stylistId}:${clientId}:${trigger}:${scheduledDate}`;
     
     try {
@@ -147,7 +159,7 @@ export class NotificationJobService {
           // Process each notification for this stylist
           for (const notification of pendingNotifications) {
             try {
-              await this.sendNotificationEmail(notification, stylistId);
+              await this.sendNotificationEmail(notification);
               totalSuccessCount++;
             } catch (error) {
               console.error(`Failed to process notification ${notification.id} for stylist ${stylistId}:`, error);
@@ -155,8 +167,7 @@ export class NotificationJobService {
               
               // Update notification status to failed with error message
               await storage.updateNotificationStatus(
-                notification.id,
-                stylistId,
+                notification.id, 
                 'failed', 
                 error instanceof Error ? error.message : 'Unknown error occurred'
               );
@@ -189,8 +200,7 @@ export class NotificationJobService {
       stylistFirstName: string | null;
       stylistLastName: string | null;
       type: 'thank_you' | 'follow_up' | 'rebook_prompt';
-    },
-    stylistId: string
+    }
   ): Promise<void> {
     // Validate that we have a client email
     if (!notification.clientEmail) {
@@ -228,7 +238,7 @@ export class NotificationJobService {
 
     if (result.success) {
       // Update notification status to sent
-      await storage.updateNotificationStatus(notification.id, stylistId, 'sent');
+      await storage.updateNotificationStatus(notification.id, 'sent');
       console.log(`Successfully sent notification ${notification.id} to ${notification.clientEmail}`);
     } else {
       throw new Error(result.error || 'Failed to send email');

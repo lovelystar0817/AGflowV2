@@ -16,9 +16,8 @@ import PublicBookingPage from "@/pages/public-booking-page";
 import TodayAppointmentsPage from "@/pages/today-appointments-page";
 import BusinessSettingsPage from "@/pages/business-settings-page";
 import ClientPage from "@/pages/ClientPage";
-import CustomizeAppPage from "@/pages/customize-app";
-import PublicAppPage from "@/pages/public-app-page";
-import AppPreviewPage from "@/pages/app-preview";
+import MessagesPage from "@/pages/messages-page";
+import DiscoverJobsPage from "@/pages/discover-jobs-page";
 
 function Router() {
   return (
@@ -27,14 +26,13 @@ function Router() {
       <ProtectedRoute path="/profile-setup" component={ProfileSetupPage} />
       <ProtectedRoute path="/dashboard/calendar/:date" component={DailyAvailabilityPage} />
       <ProtectedRoute path="/dashboard/today-appointments" component={TodayAppointmentsPage} />
+      <ProtectedRoute path="/messages" component={MessagesPage} />
+      <ProtectedRoute path="/discover-jobs" component={DiscoverJobsPage} />
       <ProtectedRoute path="/coupons/create" component={CouponCreatePage} />
       <ProtectedRoute path="/coupons/:id/send" component={CouponSendPage} />
       <ProtectedRoute path="/clients/:id" component={ClientPage} />
       <ProtectedRoute path="/settings/business" component={BusinessSettingsPage} />
-      <ProtectedRoute path="/dashboard/customize-app" component={CustomizeAppPage} />
-      <ProtectedRoute path="/app/preview" component={AppPreviewPage} />
       <Route path="/auth" component={AuthPage} />
-      <Route path="/app/:slug" component={PublicAppPage} />
       <Route path="/book/:stylistId" component={PublicBookingPage} />
       <Route component={NotFound} />
     </Switch>

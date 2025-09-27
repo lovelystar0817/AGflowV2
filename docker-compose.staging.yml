@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Staging App Service
+  app:
+    build:
+      context: .
+      dockerfile: staging.dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=staging
+      - STAGING_DATABASE_URL=${STAGING_DATABASE_URL}
+      - STAGING_RESEND_API_KEY=${STAGING_RESEND_API_KEY}
+      - STAGING_OPENAI_API_KEY=${STAGING_OPENAI_API_KEY}
+      - STAGING_SESSION_SECRET=${STAGING_SESSION_SECRET}
+      - STAGING_DOMAIN=${STAGING_DOMAIN}
+      - STAGING_EMAIL_DOMAIN=${STAGING_EMAIL_DOMAIN}
+      - STAGING_REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis Service for Staging
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL Database for Staging
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=staging_hair_stylist_db
+      - POSTGRES_USER=staging_user
+      - POSTGRES_PASSWORD=staging_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staging_user -d staging_hair_stylist_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_staging_data:

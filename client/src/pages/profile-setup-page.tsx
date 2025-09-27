@@ -74,13 +74,6 @@ export default function ProfileSetupPage() {
   const form = useForm<UpdateProfile>({
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      businessName: null,
-      showPhone: false,
-      portfolioPhotos: [],
-      themeId: 1,
-      appSlug: "",
       phone: "",
       location: "",
       services: [],
@@ -112,13 +105,6 @@ export default function ProfileSetupPage() {
 
       // Reset form with existing user data
       form.reset({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        businessName: user.businessName,
-        showPhone: user.showPhone || false,
-        portfolioPhotos: user.portfolioPhotos || [],
-        themeId: user.themeId || 1,
-        appSlug: user.appSlug || "",
         phone: user.phone || "",
         location: user.location || "",
         services: formServices,
@@ -221,7 +207,6 @@ export default function ProfileSetupPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       
       // Check if this is first-time profile completion (user had no previous business hours)
       const isFirstTimeSetup = !user?.businessHours;
@@ -315,23 +300,24 @@ export default function ProfileSetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background animate-fade-in">
       {/* Header */}
-      <div className="bg-card border-b border-border">
+      <div className="bg-card border-b border-border shadow-sm transition-enhanced">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 flex-1">
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={() => navigate("/")}
+                className="h-8 w-8 sm:h-10 sm:w-10 transition-enhanced hover-lift flex-shrink-0"
                 data-testid="button-back"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <div>
-                <h1 className="text-xl font-semibold">Complete Your Profile</h1>
-                <p className="text-sm text-muted-foreground">Set up your business details</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-semibold truncate">Complete Your Profile</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Set up your business details</p>
               </div>
             </div>
           </div>
@@ -339,18 +325,18 @@ export default function ProfileSetupPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 lg:space-y-8 animate-slide-in">
             {/* Contact Information */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle>Contact Information</CardTitle>
                 <CardDescription>
                   Let clients know how to reach you
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
                 <FormField
                   control={form.control}
                   name="phone"
@@ -390,14 +376,14 @@ export default function ProfileSetupPage() {
             </Card>
 
             {/* Services Offered */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle>Services Offered</CardTitle>
                 <CardDescription>
                   Select services you provide and set your prices (at least one service required)
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
                 {/* Preset Services with Tabs */}
                 <div>
                   <h4 className="text-sm font-medium mb-4">Services by Category</h4>
@@ -645,14 +631,14 @@ export default function ProfileSetupPage() {
             </Card>
 
             {/* About You */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle>About You</CardTitle>
                 <CardDescription>
                   Tell clients about your experience and expertise
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
                 <FormField
                   control={form.control}
                   name="bio"
@@ -706,7 +692,7 @@ export default function ProfileSetupPage() {
             </Card>
 
             {/* Business Hours */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle>Business Hours</CardTitle>
                 <CardDescription>
@@ -776,14 +762,14 @@ export default function ProfileSetupPage() {
             </Card>
 
             {/* Optional Information */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle>Optional Information</CardTitle>
                 <CardDescription>
                   Additional details to help clients find and book with you
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
                 <FormField
                   control={form.control}
                   name="instagramHandle"

@@ -6,6 +6,7 @@ interface EmailResult {
   id?: string;
   error?: string;
   deliveredAt?: Date;
+  retry?: boolean;
 }
 
 interface EmailTemplate {
@@ -90,9 +91,129 @@ class ResendEmailService {
 
     } catch (error: any) {
       console.error('Resend email error:', error);
+      
+      // Determine if error is retryable
+      const isRetryable = this.isRetryableError(error);
+      
       return {
         success: false,
-        error: `Failed to send email: ${error.message || 'Unknown error'}`
+        error: `Failed to send email: ${error.message || 'Unknown error'}`,
+        retry: isRetryable
+      };
+    }
+  }
+
+  /**
+   * Determines if an email error is retryable
+   * @param error - The error object from Resend
+   * @returns boolean indicating if the error should trigger a retry
+   */
+  private isRetryableError(error: any): boolean {
+    // Rate limit errors are retryable
+    if (error.message?.includes('rate limit') || error.status === 429) {
+      return true;
+    }
+    
+    // Temporary server errors are retryable
+    if (error.status >= 500 && error.status < 600) {
+      return true;
+    }
+    
+    // Network timeout errors are retryable
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') {
+      return true;
+    }
+    
+    // Invalid email addresses are not retryable
+    if (error.message?.includes('invalid email') || error.status === 400) {
+      return false;
+    }
+    
+    // Default to not retryable for unknown errors
+    return false;
+  }
+
+  /**
+   * Send a booking confirmation email
+   */
+  async sendBookingConfirmationEmail(
+    toEmail: string,
+    clientName: string,
+    stylistName: string,
+    serviceName: string,
+    appointmentDate: string,
+    appointmentTime: string,
+    businessName?: string
+  ): Promise<EmailResult> {
+    try {
+      const subject = `✅ Booking Confirmed with ${stylistName} - ${businessName || 'Hair Stylist'}`;
+      
+      const html = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Booking Confirmation</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 30px; border-radius: 15px 15px 0 0; text-align: center; color: white;">
+              <h1 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">✅ Booking Confirmed!</h1>
+              <p style="margin: 0; font-size: 16px; opacity: 0.9;">Your appointment is all set</p>
+            </div>
+            
+            <div style="background-color: white; padding: 30px; border-radius: 0 0 15px 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+              <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">Hi ${clientName},</p>
+              
+              <p style="color: #666; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                Your appointment has been successfully booked! Here are the details:
+              </p>
+              
+              <div style="background: #f8f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #4facfe; margin: 20px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 5px 0; color: #666; font-size: 14px; font-weight: 600;">Stylist:</td>
+                    <td style="padding: 5px 0; color: #333; font-size: 14px;">${stylistName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 5px 0; color: #666; font-size: 14px; font-weight: 600;">Service:</td>
+                    <td style="padding: 5px 0; color: #333; font-size: 14px;">${serviceName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 5px 0; color: #666; font-size: 14px; font-weight: 600;">Date:</td>
+                    <td style="padding: 5px 0; color: #333; font-size: 14px;">${appointmentDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 5px 0; color: #666; font-size: 14px; font-weight: 600;">Time:</td>
+                    <td style="padding: 5px 0; color: #333; font-size: 14px;">${appointmentTime}</td>
+                  </tr>
+                </table>
+              </div>
+              
+              <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 25px 0 0 0;">
+                We look forward to seeing you! If you need to make any changes, please contact ${stylistName} directly.
+              </p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                Thank you for booking with ${businessName || stylistName}!
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      const text = `Booking Confirmed!\n\nHi ${clientName},\n\nYour appointment has been successfully booked!\n\nDetails:\nStylist: ${stylistName}\nService: ${serviceName}\nDate: ${appointmentDate}\nTime: ${appointmentTime}\n\nWe look forward to seeing you!\n\n${businessName || stylistName}`;
+
+      return await this.sendEmail(toEmail, subject, html, true);
+    } catch (error) {
+      console.error('Error in sendBookingConfirmationEmail:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send booking confirmation email'
       };
     }
   }

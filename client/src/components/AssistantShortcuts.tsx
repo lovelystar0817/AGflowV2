@@ -6,7 +6,6 @@ import {
   Users, 
   Calendar, 
   Clock, 
-  Settings, 
   Bell, 
   Tag, 
   Mail,

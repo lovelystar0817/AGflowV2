@@ -136,9 +136,33 @@ export default function PublicBookingPage() {
       });
     },
     onError: (error: Error) => {
+      // Parse error message for better user feedback
+      let title = "Booking failed";
+      let description = error.message;
+      
+      if (error.message.includes("time slot is already booked")) {
+        title = "Time slot unavailable";
+        description = "This time slot has just been booked by someone else. Please choose a different time.";
+      } else if (error.message.includes("stylist not found")) {
+        title = "Stylist unavailable";
+        description = "This stylist is no longer accepting bookings. Please try again later.";
+      } else if (error.message.includes("invalid service")) {
+        title = "Service unavailable";
+        description = "This service is no longer offered. Please select a different service.";
+      } else if (error.message.includes("missing required fields")) {
+        title = "Information required";
+        description = "Please fill in all required fields to complete your booking.";
+      } else if (error.message.includes("invalid email")) {
+        title = "Invalid email";
+        description = "Please enter a valid email address to receive your booking confirmation.";
+      } else if (error.message.toLowerCase().includes("network") || error.message.toLowerCase().includes("fetch")) {
+        title = "Connection problem";
+        description = "Unable to connect to booking system. Please check your internet connection and try again.";
+      }
+      
       toast({
-        title: "Booking failed",
-        description: error.message,
+        title,
+        description,
         variant: "destructive",
       });
     },
@@ -254,41 +278,41 @@ export default function PublicBookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 animate-fade-in">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-950 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="bg-white dark:bg-gray-950 shadow-enhanced glass transition-enhanced">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Scissors className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold">
+              <Scissors className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <h1 className="text-xl sm:text-2xl font-bold">
                 {stylist.firstName} {stylist.lastName}
               </h1>
             </div>
             {stylist.businessName && (
-              <p className="text-gray-600 dark:text-gray-400">{stylist.businessName}</p>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">{stylist.businessName}</p>
             )}
             {stylist.location && (
-              <p className="text-sm text-gray-500 dark:text-gray-500">{stylist.location}</p>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500">{stylist.location}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Booking Form */}
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 animate-slide-in">
             {/* Personal Information */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5" />
                   Your Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <FormField
                     control={form.control}
                     name="firstName"
@@ -366,7 +390,7 @@ export default function PublicBookingPage() {
             </Card>
 
             {/* Service Selection */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Scissors className="h-5 w-5" />
@@ -410,7 +434,7 @@ export default function PublicBookingPage() {
             </Card>
 
             {/* Date Selection */}
-            <Card>
+            <Card className="shadow-enhanced glass transition-enhanced hover-lift">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CalendarDays className="h-5 w-5" />
@@ -467,13 +491,13 @@ export default function PublicBookingPage() {
                                     <p className="text-muted-foreground">No available times for this date</p>
                                   </div>
                                 ) : (
-                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                  <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-2">
                                     {getAvailableSlots().map((slot) => (
                                       <Button
                                         key={slot}
                                         type="button"
                                         variant={field.value === slot ? "default" : "outline"}
-                                        className="h-10 text-sm"
+                                        className="h-9 sm:h-10 text-xs sm:text-sm transition-enhanced hover-lift"
                                         onClick={() => field.onChange(slot)}
                                         data-testid={`time-slot-${slot.replace(':', '-')}`}
                                       >
@@ -498,7 +522,7 @@ export default function PublicBookingPage() {
             <Button
               type="submit"
               size="lg"
-              className="w-full"
+              className="w-full transition-enhanced hover-lift shadow-enhanced"
               disabled={
                 bookingMutation.isPending || 
                 !selectedDate || 
@@ -507,12 +531,16 @@ export default function PublicBookingPage() {
               }
               data-testid="button-book"
             >
-              {bookingMutation.isPending ? "Booking..." : "Book Appointment"}
-              {selectedService && (
-                <Badge variant="secondary" className="ml-2">
-                  ${selectedService.price}
-                </Badge>
-              )}
+              <div className="flex items-center justify-center gap-2 w-full">
+                <span className="text-sm sm:text-base">
+                  {bookingMutation.isPending ? "Booking..." : "Book Appointment"}
+                </span>
+                {selectedService && (
+                  <Badge variant="secondary" className="text-xs sm:text-sm">
+                    ${selectedService.price}
+                  </Badge>
+                )}
+              </div>
             </Button>
           </form>
         </Form>

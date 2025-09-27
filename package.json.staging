@@ -1,0 +1,20 @@
+{
+  "name": "hair-stylist-platform-staging",
+  "version": "1.0.0",
+  "description": "Hair Stylist Business Management Platform - Staging Environment",
+  "type": "module",
+  "scripts": {
+    "dev:staging": "NODE_ENV=staging tsx watch server/index.ts",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build --mode staging",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --outfile=dist/server.js --format=esm --packages=external",
+    "start:staging": "NODE_ENV=staging node dist/server.js",
+    "db:push:staging": "NODE_ENV=staging drizzle-kit push --config=staging.config.ts",
+    "db:generate:staging": "NODE_ENV=staging drizzle-kit generate --config=staging.config.ts",
+    "db:migrate:staging": "NODE_ENV=staging drizzle-kit migrate --config=staging.config.ts",
+    "test:staging": "NODE_ENV=staging npm run test"
+  },
+  "keywords": ["hair-stylist", "business-management", "staging"],
+  "author": "Hair Stylist Platform Team",
+  "license": "MIT"
+}

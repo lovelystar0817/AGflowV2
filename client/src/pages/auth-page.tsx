@@ -78,24 +78,24 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/10 p-4">
-      <div className="w-full max-w-md space-y-8 my-8">
+    <div className="min-h-screen overflow-y-auto flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4 sm:p-6 lg:p-8 animate-fade-in">
+      <div className="w-full max-w-md space-y-6 sm:space-y-8 my-4 sm:my-8 animate-slide-in">
         {/* Logo/Brand Section */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary rounded-full flex items-center justify-center mb-4">
+          <div className="mx-auto h-16 w-16 bg-primary rounded-full flex items-center justify-center mb-4 animate-float shadow-enhanced">
             <Scissors className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">StylistPro</h1>
+          <h1 className="text-3xl font-bold text-foreground bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">StylistPro</h1>
           <p className="text-muted-foreground mt-2">Professional hairstylist management platform</p>
         </div>
 
         {/* Auth Forms */}
-        <Card className="bg-card border border-border shadow-lg">
-          <CardContent className="p-8">
+        <Card className="bg-card border border-border shadow-enhanced glass hover-lift transition-enhanced">
+          <CardContent className="p-6 sm:p-8">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login" data-testid="tab-login">Sign In</TabsTrigger>
-                <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-lg">
+                <TabsTrigger value="login" data-testid="tab-login" className="transition-enhanced hover-lift">Sign In</TabsTrigger>
+                <TabsTrigger value="signup" data-testid="tab-signup" className="transition-enhanced hover-lift">Sign Up</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login" className="space-y-6 mt-6">
@@ -112,7 +112,7 @@ export default function AuthPage() {
                       type="email"
                       data-testid="input-login-email"
                       {...loginForm.register("email")}
-                      className="h-12"
+                      className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                     />
                     {loginForm.formState.errors.email && (
                       <p className="text-sm text-destructive">{loginForm.formState.errors.email.message}</p>
@@ -126,7 +126,7 @@ export default function AuthPage() {
                       type="password"
                       data-testid="input-login-password"
                       {...loginForm.register("password")}
-                      className="h-12"
+                      className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                     />
                     {loginForm.formState.errors.password && (
                       <p className="text-sm text-destructive">{loginForm.formState.errors.password.message}</p>
@@ -135,7 +135,7 @@ export default function AuthPage() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
+                    className="w-full h-12 sm:h-12 text-base bg-primary hover:bg-primary/90 text-primary-foreground transition-enhanced hover-lift focus-enhanced gradient-primary"
                     disabled={loginMutation.isPending}
                     data-testid="button-login"
                   >
@@ -159,7 +159,7 @@ export default function AuthPage() {
 
                 <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
                   {/* First Name and Last Name Row */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="signup-firstName">First Name *</Label>
                       <Input
@@ -167,7 +167,7 @@ export default function AuthPage() {
                         type="text"
                         data-testid="input-signup-firstName"
                         {...signupForm.register("firstName")}
-                        className="h-12"
+                        className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                         required
                       />
                       {signupForm.formState.errors.firstName && (
@@ -181,7 +181,7 @@ export default function AuthPage() {
                         type="text"
                         data-testid="input-signup-lastName"
                         {...signupForm.register("lastName")}
-                        className="h-12"
+                        className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                         required
                       />
                       {signupForm.formState.errors.lastName && (
@@ -198,7 +198,7 @@ export default function AuthPage() {
                       type="email"
                       data-testid="input-signup-email"
                       {...signupForm.register("email")}
-                      className="h-12"
+                      className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                       required
                     />
                     {signupForm.formState.errors.email && (
@@ -218,7 +218,7 @@ export default function AuthPage() {
                       })}
                       onFocus={() => setPasswordFocused(true)}
                       onBlur={() => setPasswordFocused(false)}
-                      className="h-12"
+                      className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                       required
                     />
                     {signupForm.formState.errors.password && (
@@ -238,7 +238,7 @@ export default function AuthPage() {
                       type="password"
                       data-testid="input-signup-confirmPassword"
                       {...signupForm.register("confirmPassword")}
-                      className="h-12"
+                      className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                       required
                     />
                     {signupForm.formState.errors.confirmPassword && (
@@ -254,7 +254,7 @@ export default function AuthPage() {
                       type="text"
                       data-testid="input-signup-business"
                       {...signupForm.register("businessName")}
-                      className="h-12"
+                      className="h-12 sm:h-12 transition-enhanced focus-enhanced text-base"
                       placeholder="Optional - Your salon or business name"
                     />
                     {signupForm.formState.errors.businessName && (
@@ -264,7 +264,7 @@ export default function AuthPage() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground"
+                    className="w-full h-12 sm:h-12 text-base bg-primary hover:bg-primary/90 text-primary-foreground transition-enhanced hover-lift focus-enhanced gradient-primary"
                     disabled={registerMutation.isPending}
                     data-testid="button-signup"
                   >
