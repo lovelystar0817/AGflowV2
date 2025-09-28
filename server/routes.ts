@@ -7,7 +7,7 @@ import { postLimiter } from "./index";
 import csrf from "csrf";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, updateTemplateSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand, routePrompt } from "./openai-service";
 import { executeAction } from "./ai-handlers";
@@ -621,10 +621,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const validation = updateProfileSchema.safeParse(req.body);
+      // Try template schema first, then profile schema
+      let validation = updateTemplateSchema.safeParse(req.body);
+      let validationSchema = updateTemplateSchema;
       
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid profile data", details: validation.error.errors });
+        validation = updateProfileSchema.safeParse(req.body);
+        validationSchema = updateProfileSchema;
+        
+        if (!validation.success) {
+          return res.status(400).json({ error: "Invalid data", details: validation.error.errors });
+        }
       }
       
       const updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data);

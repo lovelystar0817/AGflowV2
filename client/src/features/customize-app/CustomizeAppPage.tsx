@@ -59,11 +59,15 @@ export default function CustomizeAppPage() {
     onSuccess: () => {
       toast({
         title: "Template saved!",
-        description: "Your app theme and portfolio have been updated.",
+        description: "Your app theme and portfolio have been updated. Redirecting to your QR codes...",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      setShowQRCode(true);
+      
+      // Redirect to dashboard with App QR tab active
+      setTimeout(() => {
+        setLocation("/?tab=qr-code&subtab=app");
+      }, 1000); // Small delay to let the user see the success message
     },
     onError: (error: Error) => {
       toast({

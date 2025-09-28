@@ -21,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClientsPage } from "./clients-page";
 import { ProfileCompletionCard } from "@/components/profile-completion-card";
-import QRCodeSection from "@/components/qr-code-section";
+import TabbedQRCodeSection from "@/components/TabbedQRCodeSection";
 import { EditCouponModal, type CouponForEditing } from "@/components/EditCouponModal";
 import { AssistantShell } from "@/components/AssistantShell";
 import { MessagesPage } from "./messages-page";
@@ -127,7 +127,15 @@ const isCouponActive = (coupon: Coupon, now?: Date): boolean => {
 export default function DashboardPage() {
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("calendar");
+  const [location] = useLocation();
+  
+  // Parse URL parameters for tab and sub-tab
+  const params = new URLSearchParams(window.location.search);
+  const tabFromUrl = params.get('tab');
+  const subTabFromUrl = params.get('subtab');
+  
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "calendar");
+  const [qrSubTab, setQrSubTab] = useState<"booking" | "app">(subTabFromUrl === "app" ? "app" : "booking");
   const [showProfileCompletion, setShowProfileCompletion] = useState(
     user ? !isProfileComplete(user) : false
   );
@@ -136,6 +144,37 @@ export default function DashboardPage() {
   useEffect(() => {
     setShowProfileCompletion(user ? !isProfileComplete(user) : false);
   }, [user]);
+
+  // Handle tab changes with URL updates
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === "qr-code") {
+      // Update URL without refreshing page
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      if (qrSubTab) {
+        url.searchParams.set('subtab', qrSubTab);
+      }
+      window.history.pushState(null, '', url.toString());
+    } else {
+      // Clear tab params for other tabs
+      const url = new URL(window.location.href);
+      url.searchParams.delete('tab');
+      url.searchParams.delete('subtab');
+      window.history.pushState(null, '', url.toString());
+    }
+  };
+
+  // Handle QR sub-tab changes
+  const handleQrSubTabChange = (subTab: "booking" | "app") => {
+    setQrSubTab(subTab);
+    if (activeTab === "qr-code") {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'qr-code');
+      url.searchParams.set('subtab', subTab);
+      window.history.pushState(null, '', url.toString());
+    }
+  };
 
   // Services management state
   const [editingService, setEditingService] = useState<StylistService | null>(null);
@@ -797,7 +836,7 @@ export default function DashboardPage() {
           </Button>
           
           <Button 
-            onClick={() => setActiveTab("qr-code")}
+            onClick={() => handleTabChange("qr-code")}
             className={`h-20 rounded-2xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-all duration-200 flex-col space-y-2 ${
               activeTab === "qr-code" ? "ring-2 ring-primary bg-primary/5" : ""
             }`}
@@ -1190,7 +1229,13 @@ export default function DashboardPage() {
           {activeTab === "qr-code" && (
             <Card className="rounded-2xl shadow-md border-0">
               <div className="p-6">
-                {user && <QRCodeSection user={user} />}
+                {user && (
+                  <TabbedQRCodeSection 
+                    user={user} 
+                    activeSubTab={qrSubTab}
+                    onSubTabChange={handleQrSubTabChange}
+                  />
+                )}
               </div>
             </Card>
           )}
