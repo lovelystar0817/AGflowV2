@@ -19,7 +19,6 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { format, addDays, isSameDay, isToday } from "date-fns";
-import { ServiceButton } from "@/components/ServiceButton";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { APP_THEMES } from "@/lib/appThemes";
 import { useAuth } from "@/hooks/use-auth";
@@ -83,6 +82,10 @@ export default function AppPreviewPage() {
     queryKey: [`/api/services`],
     enabled: !!user?.id,
   });
+
+  // Debug logging
+  console.log('AppPreviewPage - services query result:', services);
+  console.log('AppPreviewPage - services loading:', servicesLoading);
 
   if (!user) {
     return <div>Please log in to preview your app</div>;

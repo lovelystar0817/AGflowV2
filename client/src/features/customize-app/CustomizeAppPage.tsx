@@ -1,17 +1,18 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { updateTemplateSchema, type UpdateTemplate } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings } from "lucide-react";
+import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { ThemeGrid } from "@/components/ThemePreview";
 import { APP_THEMES } from "@/lib/appThemes";
 import { AppQRCode } from "@/components/ui/AppQRCode";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Theme templates are now imported from ThemePreview component
 
@@ -20,6 +21,14 @@ export default function CustomizeAppPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // Check if user has any services
+  const { data: servicesResponse } = useQuery<{ items: any[] }>({
+    queryKey: ["/api/services"],
+    enabled: !!user,
+  });
+
+  const hasServices = (servicesResponse?.items?.length || 0) > 0;
 
   // Initialize local UI state
   const [portfolioPhotos, setPortfolioPhotos] = useState<string[]>(
@@ -193,6 +202,17 @@ export default function CustomizeAppPage() {
                 />
               </CardContent>
             </Card>
+
+            {/* Services Warning */}
+            {!hasServices && (
+              <Alert className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>No services added yet!</strong> Your app preview will show "No Services Available". 
+                  Add services in your <Button variant="link" className="p-0 h-auto text-blue-600 underline" onClick={() => setLocation("/dashboard")}>dashboard</Button> first for the best preview experience.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Save Button */}
             <div className="flex justify-end space-x-4">
