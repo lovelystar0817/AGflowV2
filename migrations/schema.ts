@@ -24,6 +24,7 @@ export const stylists = pgTable("stylists", {
 	email: text().notNull(),
 	passwordHash: text("password_hash").notNull(),
 	businessName: text("business_name"),
+	appSlug: text("app_slug"),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	firstName: text("first_name"),
 	lastName: text("last_name"),
@@ -35,8 +36,10 @@ export const stylists = pgTable("stylists", {
 	yearsOfExperience: integer("years_of_experience"),
 	instagramHandle: text("instagram_handle"),
 	bookingLink: text("booking_link"),
+	appQrCodeUrl: text("app_qr_code_url"),
 }, (table) => [
 	unique("stylists_email_unique").on(table.email),
+	unique("stylists_app_slug_unique").on(table.appSlug),
 ]);
 
 export const appointments = pgTable("appointments", {

@@ -47,6 +47,31 @@ export default function CustomizeAppPage() {
     }
   }, [user]);
 
+  // QR Code generation mutation
+  const generateQRMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id || !user?.appSlug) {
+        throw new Error("User ID or app slug not available");
+      }
+      const response = await apiRequest("POST", `/api/stylists/${user.id}/app-qr`, {});
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      // Re-fetch user data so AppQRCode component updates
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/stylists/${user?.id}/app-qr`] });
+    },
+    onError: (error: Error) => {
+      console.error("QR generation error:", error);
+      // Don't show error toast for QR generation failure since template was already saved
+      // Just log the error for debugging
+    },
+  });
+
   const updateTemplateMutation = useMutation({
     mutationFn: async (data: UpdateTemplate) => {
       const response = await apiRequest("PATCH", "/api/profile", data);
@@ -56,18 +81,35 @@ export default function CustomizeAppPage() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Template saved!",
-        description: "Your app theme and portfolio have been updated. Redirecting to your QR codes...",
+        description: "Your app theme and portfolio have been updated. Generating QR code...",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       
+      // Generate QR code after template is saved
+      if (user?.appSlug) {
+        try {
+          await generateQRMutation.mutateAsync();
+          toast({
+            title: "QR Code generated!",
+            description: "Your app QR code has been created. Redirecting to QR codes...",
+          });
+        } catch (error) {
+          // Template was saved successfully, just QR generation failed
+          toast({
+            title: "Template saved successfully!",
+            description: "QR code generation will be available in the QR Code section.",
+          });
+        }
+      }
+      
       // Redirect to dashboard with App QR tab active
       setTimeout(() => {
         setLocation("/?tab=qr-code&subtab=app");
-      }, 1000); // Small delay to let the user see the success message
+      }, 1500); // Slightly longer delay for QR generation
     },
     onError: (error: Error) => {
       toast({
@@ -241,14 +283,19 @@ export default function CustomizeAppPage() {
               <Button
                 type="button"
                 onClick={handleSaveTemplate}
-                disabled={updateTemplateMutation.isPending}
+                disabled={updateTemplateMutation.isPending || generateQRMutation.isPending}
                 className="min-w-48"
                 data-testid="button-save"
               >
                 {updateTemplateMutation.isPending ? (
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    <span>Saving...</span>
+                    <span>Saving Template...</span>
+                  </div>
+                ) : generateQRMutation.isPending ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span>Generating QR...</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">

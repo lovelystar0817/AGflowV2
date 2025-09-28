@@ -48,6 +48,7 @@ export const stylists = pgTable("stylists", {
   themeId: integer("theme_id").default(1),
   portfolioPhotos: json("portfolio_photos").$type<string[]>().default(sql`'[]'::json`),
   appSlug: text("app_slug").unique(),
+  appQrCodeUrl: text("app_qr_code_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

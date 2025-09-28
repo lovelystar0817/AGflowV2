@@ -7,7 +7,8 @@ import { postLimiter } from "./index";
 import csrf from "csrf";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
-import { insertClientSchema, updateProfileSchema, updateTemplateSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, updateTemplateSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, stylists, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { ensureStylistHasAppSlug } from "./slug-utils";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand, routePrompt } from "./openai-service";
 import { executeAction } from "./ai-handlers";
@@ -682,6 +683,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // QR Code management routes
+  app.post("/api/stylists/:id/app-qr", async (req, res) => {
+    try {
+      const stylistId = req.params.id;
+      const userId = req.user?.id;
+
+      if (!userId || userId !== stylistId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      // Fetch stylist record
+      const [stylist] = await db
+        .select()
+        .from(stylists)
+        .where(eq(stylists.id, stylistId));
+
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+
+      // 1. If slug doesn’t exist, generate and save it
+      let slug = stylist.appSlug;
+      if (!slug) {
+        slug = (stylist.businessName || `${stylist.firstName || ''} ${stylist.lastName || ''}`)
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9\-]/g, "")
+          .replace(/^-+|-+$/g, "");
+
+        // Ensure slug isn't empty after sanitization
+        if (!slug) slug = `stylist-${stylistId.slice(0, 8)}`;
+
+        await db
+          .update(stylists)
+          .set({ appSlug: slug })
+          .where(eq(stylists.id, stylistId));
+      }
+
+      // 2. Generate QR code URL
+      const publicUrl = process.env.PUBLIC_URL || 'http://localhost:5173';
+      const qrUrl = `${publicUrl}/app/${slug}`;
+      const QRCode = await import('qrcode');
+      const qrCodeDataUrl = await QRCode.toDataURL(qrUrl);
+
+      // 3. Save QR code in DB
+      await db
+        .update(stylists)
+        .set({ appQrCodeUrl: qrCodeDataUrl })
+        .where(eq(stylists.id, stylistId));
+
+      res.json({ appQrCodeUrl: qrCodeDataUrl });
+    } catch (err) {
+      // Enhanced diagnostics for debugging 500s in QR generation
+      try {
+        const info: any = {
+          message: (err && err.message) || String(err),
+          stack: err && err.stack,
+          stylistId: req.params.id,
+          userId: req.user?.id,
+        };
+
+        // include known locals if available
+        if (typeof stylist !== 'undefined') info.stylist = {
+          id: stylist.id,
+          appSlug: stylist.appSlug,
+          businessName: stylist.businessName,
+        };
+        if (typeof slug !== 'undefined') info.generatedSlug = slug;
+        if (typeof qrUrl !== 'undefined') info.qrUrl = qrUrl;
+
+        console.error('Error generating app QR (detailed):', JSON.stringify(info, null, 2));
+      } catch (logErr) {
+        // fallback logging
+        console.error('Error generating app QR (and failed to stringify details):', err, logErr);
+      }
+
+      res.status(500).json({ error: "Failed to generate QR code" });
+    }
+  });
+
+  app.get("/api/stylists/:id/app-qr", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+
+      // Validate that the stylist is accessing their own QR code
+      if (id !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      try {
+        // Direct database query using db
+        const [stylist] = await db
+          .select({ appQrCodeUrl: stylists.appQrCodeUrl })
+          .from(stylists)
+          .where(eq(stylists.id, req.user.id));
+
+        if (!stylist?.appQrCodeUrl) {
+          return res.status(404).json({ error: "No QR code available" });
+        }
+
+        res.json({ appQrCodeUrl: stylist.appQrCodeUrl });
+      } catch (dbError) {
+        console.error("QR code fetch error:", dbError);
+        res.status(500).json({ error: "Failed to fetch QR code" });
+      }
+    } catch (error) {
+      console.error("Error fetching QR code:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/services/replace", async (req, res) => {
     try {
       if (!req.user) {
@@ -1298,11 +1414,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bio: stylist.bio,
         instagramHandle: stylist.instagramHandle,
         businessHours: stylist.businessHours,
+        appSlug: stylist.appSlug,
+        themeId: stylist.themeId,
+        portfolioPhotos: stylist.portfolioPhotos,
       };
       
       res.json(publicStylist);
     } catch (error) {
       console.error("Error fetching public stylist:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/public/stylist/slug/:slug - public app page
+  app.get("/api/public/stylist/slug/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const stylist = await storage.getStylistBySlug(slug);
+      
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      
+      // Return public information including app customization
+      const publicStylist = {
+        id: stylist.id,
+        firstName: stylist.firstName,
+        lastName: stylist.lastName,
+        businessName: stylist.businessName,
+        location: stylist.location,
+        bio: stylist.bio,
+        instagramHandle: stylist.instagramHandle,
+        businessHours: stylist.businessHours,
+        appSlug: stylist.appSlug,
+        themeId: stylist.themeId,
+        portfolioPhotos: stylist.portfolioPhotos,
+      };
+      
+      res.json(publicStylist);
+    } catch (error) {
+      console.error("Error fetching stylist by slug:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

@@ -107,26 +107,47 @@ export default function BusinessSettingsPage() {
   // Update business settings mutation
   const updateBusinessMutation = useMutation({
     mutationFn: async (data: BusinessSettingsFormData) => {
-      const response = await fetch("/api/business-settings", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          businessName: data.businessName,
-          businessType: data.businessType,
-          bio: data.businessDescription,
-          location: data.serviceArea,
-          smsSenderName: data.smsSenderName,
-          defaultAppointmentDuration: parseInt(data.defaultAppointmentDuration),
-          preferredSlotFormat: parseInt(data.preferredSlotFormat),
-          showPublicly: data.showPublicly,
-        }),
+      const response = await apiRequest("PUT", "/api/business-settings", {
+        businessName: data.businessName,
+        businessType: data.businessType,
+        bio: data.businessDescription,
+        location: data.serviceArea,
+        smsSenderName: data.smsSenderName,
+        defaultAppointmentDuration: parseInt(data.defaultAppointmentDuration),
+        preferredSlotFormat: parseInt(data.preferredSlotFormat),
+        showPublicly: data.showPublicly,
       });
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate all user-related queries
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      
+      // Invalidate public stylist queries that power the app preview
+      const userId = (user as any)?.id;
+      const appSlug = (user as any)?.appSlug;
+      
+      if (userId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist/${userId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist`, userId] });
+      }
+      if (appSlug) {
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist/slug/${appSlug}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist/slug`, appSlug] });
+      }
+      
+      // Invalidate any queries that might cache bio information
+      queryClient.invalidateQueries({ predicate: (query) => {
+        return query.queryKey.some(key => 
+          typeof key === 'string' && (
+            key.includes('stylist') || 
+            key.includes('profile') || 
+            key.includes('user')
+          )
+        );
+      }});
+      
       toast({
         title: "Settings updated",
         description: "Your business settings have been saved successfully.",
@@ -145,12 +166,8 @@ export default function BusinessSettingsPage() {
   const replaceServicesMutation = useMutation({
     mutationFn: async (businessType: string) => {
       const defaultServices = DEFAULT_SERVICES[businessType as keyof typeof DEFAULT_SERVICES];
-      const response = await fetch("/api/services/replace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ services: defaultServices }),
+      const response = await apiRequest("POST", "/api/services/replace", {
+        services: defaultServices
       });
       return response.json();
     },

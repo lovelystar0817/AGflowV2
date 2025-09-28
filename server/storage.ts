@@ -37,9 +37,12 @@ export interface PaginatedResponse<T> {
 export interface IStorage {
   getStylist(id: string): Promise<Stylist | undefined>;
   getStylistByEmail(email: string): Promise<Stylist | undefined>;
+  getStylistBySlug(slug: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
   updateStylistProfile(id: string, profile: UpdateProfile): Promise<Stylist>;
   updateBusinessSettings(id: string, settings: any): Promise<Stylist>;
+  updateStylistQrCode(id: string, qrCodeUrl: string): Promise<void>;
+  getStylistQrCode(id: string): Promise<string | null>;
   
   // Service management
   getStylistServices(stylistId: string): Promise<StylistService[]>;
@@ -189,23 +192,39 @@ export class DatabaseStorage implements IStorage {
       serviceNames = profile.services.map(service => service.serviceName);
     }
     
-    // Update the stylist profile (including legacy servicesOffered field for completeness check)
+    // Build an update payload containing only defined fields to avoid Drizzle's "No values to set" error
+    const updatePayload: any = {
+      updatedAt: new Date(),
+    };
+
+    if (typeof profile.phone !== 'undefined') updatePayload.phone = profile.phone;
+    if (typeof profile.location !== 'undefined') updatePayload.location = profile.location;
+    if (typeof profile.bio !== 'undefined') updatePayload.bio = profile.bio;
+    if (typeof profile.businessHours !== 'undefined') updatePayload.businessHours = profile.businessHours;
+    if (typeof profile.yearsOfExperience !== 'undefined') updatePayload.yearsOfExperience = profile.yearsOfExperience;
+    if (typeof profile.instagramHandle !== 'undefined') updatePayload.instagramHandle = profile.instagramHandle;
+    if (typeof profile.bookingLink !== 'undefined') updatePayload.bookingLink = profile.bookingLink;
+    // Populate legacy field for backward compatibility with isProfileComplete
+    if (typeof profile.services !== 'undefined') updatePayload.servicesOffered = serviceNames;
+
+    // If there's nothing to update, return the existing stylist row instead of calling .update with empty set
+    if (Object.keys(updatePayload).length === 1 && updatePayload.updatedAt) {
+      // No user-supplied fields to update
+      const existing = await this.getStylist(id);
+      if (!existing) throw new Error(`Stylist not found: ${id}`);
+      return existing;
+    }
+
     const [stylist] = await db
       .update(stylists)
-      .set({
-        phone: profile.phone,
-        location: profile.location,
-        bio: profile.bio,
-        businessHours: profile.businessHours,
-        yearsOfExperience: profile.yearsOfExperience,
-        instagramHandle: profile.instagramHandle,
-        bookingLink: profile.bookingLink,
-        // Populate legacy field for backward compatibility with isProfileComplete
-        servicesOffered: profile.services ? serviceNames : undefined,
-      })
+      .set(updatePayload)
       .where(eq(stylists.id, id))
       .returning();
-    
+
+    if (!stylist) {
+      throw new Error(`No stylist found with id ${id}`);
+    }
+
     return stylist;
   }
 
@@ -226,6 +245,23 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return stylist;
+  }
+
+  // QR Code management methods
+  async updateStylistQrCode(id: string, qrCodeUrl: string): Promise<void> {
+    await db
+      .update(stylists)
+      .set({ appQrCodeUrl: qrCodeUrl })
+      .where(eq(stylists.id, id));
+  }
+
+  async getStylistQrCode(id: string): Promise<string | null> {
+    const [stylist] = await db
+      .select({ appQrCodeUrl: stylists.appQrCodeUrl })
+      .from(stylists)
+      .where(eq(stylists.id, id));
+    
+    return stylist?.appQrCodeUrl || null;
   }
 
   // Service management methods
