@@ -14,4 +14,3 @@ async function testConnection() {
 }
 
 testConnection();
-
