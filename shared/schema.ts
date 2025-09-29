@@ -30,7 +30,9 @@ export const stylists = pgTable("stylists", {
   businessName: text("business_name"),
   // Profile fields
   phone: text("phone"),
-  location: text("location"),
+  location: text("location"), // Legacy field - to be deprecated
+  city: text("city"),
+  state: text("state"),
   servicesOffered: json("services_offered").$type<string[]>(),
   bio: text("bio"),
   businessHours: json("business_hours").$type<{
@@ -172,7 +174,9 @@ const businessHoursSchema = z.record(z.object({
 // Profile update schema for existing stylists
 export const updateProfileSchema = z.object({
   phone: phoneValidationSchema,
-  location: z.string().min(1, "Location is required"),
+  location: z.string().optional(), // Legacy field - optional for backwards compatibility
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
   services: z.array(serviceFormSchema).min(1, "At least one service is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
