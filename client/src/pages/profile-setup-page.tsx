@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { updateProfileSchema, type UpdateProfile, type StylistService, type TimeRange, DEFAULT_SERVICES_BY_TYPE } from "@shared/schema";
-import { US_STATES, MAJOR_CITIES_BY_STATE } from "@shared/location-data";
+import { US_STATES, MAJOR_CITIES_BY_STATE } from "../../../shared/location-data";
 import { addDays, format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -62,9 +62,6 @@ export default function ProfileSetupPage() {
   
   // State for services tabs
   const [activeServicesTab, setActiveServicesTab] = useState("hairstylist");
-  
-  // State for location dropdowns
-  const [selectedState, setSelectedState] = useState("");
 
   // Fetch existing services
   const { data: servicesResponse, isLoading: servicesLoading } = useQuery<{ items: StylistService[] }>({
@@ -130,11 +127,6 @@ export default function ProfileSetupPage() {
         instagramHandle: user.instagramHandle || "",
         bookingLink: user.bookingLink || "",
       });
-      
-      // Set selected state for city filtering
-      if (user.state) {
-        setSelectedState(user.state);
-      }
     }
   }, [user, existingServices, servicesLoading, form]);
 
@@ -379,7 +371,6 @@ export default function ProfileSetupPage() {
                         <Select 
                           onValueChange={(value) => {
                             field.onChange(value);
-                            setSelectedState(value);
                             // Clear city when state changes
                             form.setValue("city", "");
                           }}
@@ -407,31 +398,34 @@ export default function ProfileSetupPage() {
                 <FormField
                   control={form.control}
                   name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City *</FormLabel>
-                      <FormControl>
-                        <Select 
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={!selectedState}
-                          data-testid="select-city"
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={selectedState ? "Select your city" : "Please select a state first"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {selectedState && MAJOR_CITIES_BY_STATE[selectedState]?.map((city) => (
-                              <SelectItem key={city} value={city}>
-                                {city}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const currentState = form.watch("state");
+                    return (
+                      <FormItem>
+                        <FormLabel>City *</FormLabel>
+                        <FormControl>
+                          <Select 
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            disabled={!currentState}
+                            data-testid="select-city"
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={currentState ? "Select your city" : "Please select a state first"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {currentState && MAJOR_CITIES_BY_STATE[currentState]?.map((city) => (
+                                <SelectItem key={city} value={city}>
+                                  {city}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>
