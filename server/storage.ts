@@ -206,6 +206,11 @@ export class DatabaseStorage implements IStorage {
     if (typeof profile.location !== 'undefined') updatePayload.location = profile.location;
     if (typeof profile.city !== 'undefined') updatePayload.city = profile.city;
     if (typeof profile.state !== 'undefined') updatePayload.state = profile.state;
+    
+    // Automatically combine city and state into location field for backward compatibility
+    if (profile.city && profile.state) {
+      updatePayload.location = `${profile.city}, ${profile.state}`;
+    }
     if (typeof profile.bio !== 'undefined') updatePayload.bio = profile.bio;
     if (typeof profile.businessHours !== 'undefined') updatePayload.businessHours = profile.businessHours;
     if (typeof profile.yearsOfExperience !== 'undefined') updatePayload.yearsOfExperience = profile.yearsOfExperience;

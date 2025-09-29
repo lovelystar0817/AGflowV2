@@ -30,6 +30,8 @@ interface StylistProfile {
   lastName: string;
   businessName: string;
   location: string;
+  city: string;
+  state: string;
   bio: string;
   instagramHandle?: string;
   businessHours: any;
@@ -93,6 +95,11 @@ export default function PublicAppPage() {
 
   const clientLoggedIn = false; // Placeholder state - set to false for now
 
+  // Combine city and state for location display
+  const combinedLocation = stylistProfile?.city && stylistProfile?.state 
+    ? `${stylistProfile.city}, ${stylistProfile.state}`
+    : stylistProfile?.location || "";
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Stylist App Preview with Custom Message Handler */}
@@ -103,7 +110,7 @@ export default function PublicAppPage() {
             stylistId={stylistProfile.id}
             stylistName={`${stylistProfile.firstName} ${stylistProfile.lastName}`}
             businessName={stylistProfile.businessName || undefined}
-            location={stylistProfile.location || ""}
+            location={combinedLocation}
             phone={stylistProfile.phone || undefined}
             showPhone={stylistProfile.showPhone || false}
             bio={stylistProfile.bio || ""}

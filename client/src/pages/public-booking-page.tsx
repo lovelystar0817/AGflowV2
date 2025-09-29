@@ -47,7 +47,7 @@ export default function PublicBookingPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Fetch stylist details
-  const { data: stylist, isLoading: stylistLoading } = useQuery<Stylist>({
+  const { data: stylist, isLoading: stylistLoading } = useQuery<Stylist & { city?: string; state?: string }>({
     queryKey: ["/api/public/stylist", stylistId],
     queryFn: async () => {
       const response = await fetch(`/api/public/stylist/${stylistId}`);
@@ -292,8 +292,10 @@ export default function PublicBookingPage() {
             {stylist.businessName && (
               <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">{stylist.businessName}</p>
             )}
-            {stylist.location && (
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500">{stylist.location}</p>
+            {((stylist.city && stylist.state) || stylist.location) && (
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500">
+                {stylist.city && stylist.state ? `${stylist.city}, ${stylist.state}` : stylist.location}
+              </p>
             )}
           </div>
         </div>
