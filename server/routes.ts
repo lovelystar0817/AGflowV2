@@ -26,6 +26,21 @@ const writeFile = promisify(fs.writeFile);
 const mkdir = promisify(fs.mkdir);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Dev-only CSP headers to allow unsafe-eval (fixes plugin/extension errors)
+  if (process.env.NODE_ENV !== 'production') {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      res.setHeader('Content-Security-Policy', 
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: wss: https: http:; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; " +
+        "style-src 'self' 'unsafe-inline' https: http:; " +
+        "font-src 'self' data: https: http:; " +
+        "img-src 'self' data: blob: https: http:; " +
+        "connect-src 'self' ws: wss: https: http:;"
+      );
+      next();
+    });
+  }
+
   // Register staging routes if in staging environment
   registerStagingRoutes(app);
   

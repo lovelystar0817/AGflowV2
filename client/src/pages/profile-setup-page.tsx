@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+// Using native HTML select elements instead of complex Select components
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -368,26 +368,24 @@ export default function ProfileSetupPage() {
                     <FormItem>
                       <FormLabel>State *</FormLabel>
                       <FormControl>
-                        <Select 
-                          onValueChange={(value) => {
+                        <select 
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={field.value || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
                             field.onChange(value);
                             // Clear city when state changes
                             form.setValue("city", "");
                           }}
-                          value={field.value}
                           data-testid="select-state"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select your state" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {US_STATES.map((state) => (
-                              <SelectItem key={state.value} value={state.value}>
-                                {state.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <option value="">Select your state</option>
+                          {US_STATES.map((state) => (
+                            <option key={state.value} value={state.value}>
+                              {state.label}
+                            </option>
+                          ))}
+                        </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -404,23 +402,22 @@ export default function ProfileSetupPage() {
                       <FormItem>
                         <FormLabel>City *</FormLabel>
                         <FormControl>
-                          <Select 
-                            onValueChange={field.onChange}
-                            value={field.value}
+                          <select 
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
                             disabled={!currentState}
                             data-testid="select-city"
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder={currentState ? "Select your city" : "Please select a state first"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {currentState && MAJOR_CITIES_BY_STATE[currentState]?.map((city) => (
-                                <SelectItem key={city} value={city}>
-                                  {city}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <option value="">
+                              {currentState ? "Select your city" : "Please select a state first"}
+                            </option>
+                            {currentState && MAJOR_CITIES_BY_STATE[currentState]?.map((city) => (
+                              <option key={city} value={city}>
+                                {city}
+                              </option>
+                            ))}
+                          </select>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

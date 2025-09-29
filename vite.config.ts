@@ -36,6 +36,10 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    headers: {
+      // Dev-only permissive CSP to fix plugin/extension errors
+      'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: wss: https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline' https: http:; font-src 'self' data: https: http:; img-src 'self' data: blob: https: http:; connect-src 'self' ws: wss: https: http:;",
+    },
     proxy: {
       "/api": {
         target: "http://localhost:3000",
