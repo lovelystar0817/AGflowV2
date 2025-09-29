@@ -1,4 +1,4 @@
-import { ArrowRight, Smartphone, Calendar, DollarSign, Users, Sparkles, RefreshCw, TrendingUp } from "lucide-react";
+import { ArrowRight, Smartphone, Calendar, DollarSign, Users, Sparkles, RefreshCw, TrendingUp, Scissors, Brush, Palette, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 
 const fadeUp = (delay = 0) => ({
@@ -28,7 +28,7 @@ export default function LandingPage() {
           {...fadeUp(0.3)}
           className="mt-6 max-w-2xl text-lg text-gray-300"
         >
-          Run your business smarter. save time, and keep your clients coming back — all without giving up a cut of your money.
+          Run your business smarter, save time, and keep clients coming back — all without giving up a cut of your money.
         </motion.p>
 
         <motion.div
@@ -48,6 +48,78 @@ export default function LandingPage() {
             Log In
           </a>
         </motion.div>
+      </section>
+
+      {/* Who It's For Section */}
+      <section className="py-24 bg-gradient-to-br from-gray-900 via-gray-850 to-gray-800">
+        <motion.h2
+          {...fadeUp(0)}
+          className="text-4xl font-bold text-center mb-12"
+        >
+          Who It's For
+        </motion.h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto px-6">
+          {[
+            {
+              icon: Scissors,
+              title: "Hairstylists",
+              accentColor: "rose",
+              hoverGlow: "hover:shadow-rose-500/30",
+              borderHover: "hover:border-rose-400/40",
+            },
+            {
+              icon: Brush,
+              title: "Barbers",
+              accentColor: "cyan",
+              hoverGlow: "hover:shadow-cyan-500/30",
+              borderHover: "hover:border-cyan-400/40",
+            },
+            {
+              icon: Palette,
+              title: "Nail Techs",
+              accentColor: "violet",
+              hoverGlow: "hover:shadow-violet-500/30",
+              borderHover: "hover:border-violet-400/40",
+            },
+            {
+              icon: Heart,
+              title: "Massage Therapists",
+              accentColor: "teal",
+              hoverGlow: "hover:shadow-teal-500/30",
+              borderHover: "hover:border-teal-400/40",
+            },
+          ].map((item, i) => {
+            const IconComponent = item.icon;
+            
+            // Define specific hover colors for each profession
+            const hoverColorMap = {
+              rose: 'group-hover:text-rose-500',
+              cyan: 'group-hover:text-cyan-500', 
+              violet: 'group-hover:text-violet-500',
+              teal: 'group-hover:text-teal-500'
+            };
+            
+            const iconHoverColor = hoverColorMap[item.accentColor as keyof typeof hoverColorMap];
+            
+            return (
+              <motion.div
+                key={i}
+                {...fadeUp(i * 0.15)}
+                className={`group p-8 rounded-xl bg-gray-800/60 backdrop-blur-sm border border-gray-700/50 ${item.borderHover} shadow-lg ${item.hoverGlow} hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-105 text-center`}
+              >
+                <div className="flex justify-center mb-6">
+                  <IconComponent 
+                    className={`h-12 w-12 text-gray-300 transition-colors duration-300 group-hover:scale-105 ${iconHoverColor}`}
+                    strokeWidth={1.5} 
+                  />
+                </div>
+                <h3 className="font-bold text-2xl text-white text-center">
+                  {item.title}
+                </h3>
+              </motion.div>
+            );
+          })}
+        </div>
       </section>
 
       {/* Why Flow Styles */}
@@ -104,10 +176,10 @@ export default function LandingPage() {
       </section>
 
       {/* AI Assistant Section */}
-      <section className="py-24 bg-gray-950">
+      <section className="py-24 bg-gray-900">
         <motion.h2
           {...fadeUp(0)}
-          className="text-4xl font-bold text-center mb-12"
+          className="text-4xl font-bold text-center mb-12 text-cyan-300"
         >
           Your Own AI Assistant
         </motion.h2>
@@ -134,14 +206,14 @@ export default function LandingPage() {
               <motion.div
                 key={i}
                 {...fadeUp(i * 0.2)}
-                className="p-8 rounded-2xl bg-gray-800 shadow-lg hover:shadow-xl hover:shadow-purple-500/20 transition-all duration-300 transform hover:-translate-y-2"
+                className="p-8 rounded-2xl bg-gray-800 shadow-lg hover:shadow-xl hover:shadow-cyan-500/20 transition-all duration-300 transform hover:-translate-y-2"
               >
                 <div className="flex justify-center mb-6">
-                  <div className="p-4 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 shadow-lg">
-                    <IconComponent className="h-8 w-8 text-white" strokeWidth={1.5} />
+                  <div className="p-4 rounded-full bg-gradient-to-r from-gray-600 to-gray-500 shadow-lg group">
+                    <IconComponent className="h-8 w-8 text-cyan-300 hover:text-cyan-400 transition-colors duration-300" strokeWidth={1.5} />
                   </div>
                 </div>
-                <h3 className="font-bold text-xl bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent text-center mb-4">
+                <h3 className="font-bold text-xl text-white text-center mb-4">
                   {item.title}
                 </h3>
                 <p className="text-gray-300 text-center leading-relaxed">{item.text}</p>
@@ -153,180 +225,52 @@ export default function LandingPage() {
 
       {/* Comparison Section */}
       <section className="py-24 bg-gray-900">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-3xl mx-auto px-6">
           <motion.h2
             {...fadeUp(0)}
             className="text-3xl font-bold mb-12 text-center"
           >
-            Why Stylists Choose Flow Styles
+            Flow Styles Is Better The Rest
           </motion.h2>
 
-          {/* Desktop Table View */}
-          <motion.div
-            {...fadeUp(0.2)}
-            className="hidden md:block overflow-x-auto"
-          >
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr>
-                  <th className="p-4 border-b border-gray-700"></th>
-                  <th className="p-4 border-b border-gray-700 text-center">
-                    <span className="bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent font-bold">
-                      Flow Styles
-                    </span>
-                  </th>
-                  <th className="p-4 border-b border-gray-700 text-center">
-                    <span className="bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent font-bold">
-                      StyleSeat
-                    </span>
-                  </th>
-                  <th className="p-4 border-b border-gray-700 text-center">
-                    <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent font-bold">
-                      Booksy
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["Keep 100% of your income", "✅", "❌", "❌"],
-                  ["Your own branded app", "✅", "❌", "❌"],
-                  ["Instant booking links", "✅", "❌", "❌"],
-                  ["Built-in client discovery", "✅", "❌", "❌"],
-                  ["AI-powered tools", "✅", "❌", "⚠️"],
-                  ["Transparent flat pricing", "✅", "❌", "❌"],
-                ].map(([feature, fs, styleseat, booksy], i) => (
-                  <tr key={i} className="border-b border-gray-800 hover:bg-gray-800/50">
-                    <td className="p-4 text-gray-300 font-medium">{feature}</td>
-                    <td className="p-4 text-center">
-                      <span className={fs === "✅" ? "text-green-400 text-xl drop-shadow-lg" : fs === "❌" ? "text-red-400 text-xl" : "text-orange-400 text-xl"}>
-                        {fs}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className={styleseat === "✅" ? "text-green-400 text-xl drop-shadow-lg" : styleseat === "❌" ? "text-red-400 text-xl" : "text-orange-400 text-xl"}>
-                        {styleseat}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className={booksy === "✅" ? "text-green-400 text-xl drop-shadow-lg" : booksy === "❌" ? "text-red-400 text-xl" : "text-orange-400 text-xl"}>
-                        {booksy}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </motion.div>
-
-          {/* Mobile Stacked Cards View */}
-          <div className="md:hidden space-y-6">
+          <div className="space-y-8">
             {/* Flow Styles Card */}
-            <motion.div
-              {...fadeUp(0.2)}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-750 hover:to-gray-850 border border-pink-500/20 hover:border-pink-400/40 hover-lift hover:shadow-xl hover:shadow-pink-500/20 rounded-xl p-6 transition-all duration-300"
-            >
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent mb-4 text-center">
-                Flow Styles
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <span className="text-green-400 text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">✅</span>
-                  <span className="text-gray-300">Keep 100% of your income</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-green-400 text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">✅</span>
-                  <span className="text-gray-300">Your own branded app</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-green-400 text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">✅</span>
-                  <span className="text-gray-300">Instant booking links</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-green-400 text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">✅</span>
-                  <span className="text-gray-300">Built-in client discovery</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-green-400 text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">✅</span>
-                  <span className="text-gray-300">AI-powered tools</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-green-400 text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">✅</span>
-                  <span className="text-gray-300">Transparent flat pricing</span>
-                </div>
-              </div>
+            <motion.div {...fadeUp(0.1)} className="rounded-2xl bg-gray-800 shadow-lg p-8">
+              <h3 className="text-2xl font-bold mb-6 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent text-center">Flow Styles</h3>
+              <ul className="space-y-3 text-lg">
+                <li className="flex items-center gap-2 text-green-400 font-semibold"><span>✅</span> <span className="text-gray-100">Keep 100% of your income</span></li>
+                <li className="flex items-center gap-2 text-green-400 font-semibold"><span>✅</span> <span className="text-gray-100">Your own branded mini-app</span></li>
+                <li className="flex items-center gap-2 text-green-400 font-semibold"><span>✅</span> <span className="text-gray-100">Instant booking links + QR codes</span></li>
+                <li className="flex items-center gap-2 text-green-400 font-semibold"><span>✅</span> <span className="text-gray-100">Built-in client discovery</span></li>
+                <li className="flex items-center gap-2 text-green-400 font-semibold"><span>✅</span> <span className="text-gray-100">AI-powered tools</span></li>
+                <li className="flex items-center gap-2 text-green-400 font-semibold"><span>✅</span> <span className="text-gray-100">Transparent flat pricing</span></li>
+              </ul>
             </motion.div>
 
             {/* StyleSeat Card */}
-            <motion.div
-              {...fadeUp(0.4)}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-750 hover:to-gray-850 border border-orange-500/20 hover:border-orange-400/40 hover-lift hover:shadow-xl hover:shadow-orange-500/20 rounded-xl p-6 transition-all duration-300"
-            >
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent mb-4 text-center">
-                StyleSeat
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">Takes % of your income</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">No branded app</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">No instant links</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">Pay for ads</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">No AI tools</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">30% fee on new clients</span>
-                </div>
-              </div>
+            <motion.div {...fadeUp(0.2)} className="rounded-2xl bg-gray-800 shadow-lg p-8">
+              <h3 className="text-2xl font-bold mb-6 bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent text-center">StyleSeat</h3>
+              <ul className="space-y-3 text-lg">
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">30% fee on new clients + processing fees</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">No branded app</span></li>
+                <li className="flex items-center gap-2 text-orange-400 font-semibold"><span>⚠️</span> <span className="text-gray-100">Profile links only (not branded)</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">Pay for ads / referrals</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">No AI tools</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">Variable fees depending on client source</span></li>
+              </ul>
             </motion.div>
 
             {/* Booksy Card */}
-            <motion.div
-              {...fadeUp(0.6)}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-750 hover:to-gray-850 border border-blue-500/20 hover:border-blue-400/40 hover-lift hover:shadow-xl hover:shadow-blue-500/20 rounded-xl p-6 transition-all duration-300"
-            >
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent mb-4 text-center">
-                Booksy
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">Lead fees</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">No branded app</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">No instant links</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">Pay per lead</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-orange-400 text-lg">⚠️</span>
-                  <span className="text-gray-300">Limited AI tools</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-red-400 text-lg">❌</span>
-                  <span className="text-gray-300">Varying platform fees</span>
-                </div>
-              </div>
+            <motion.div {...fadeUp(0.3)} className="rounded-2xl bg-gray-800 shadow-lg p-8">
+              <h3 className="text-2xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent text-center">Booksy</h3>
+              <ul className="space-y-3 text-lg">
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">Lead/Boost fees (commission on new clients)</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">No branded app</span></li>
+                <li className="flex items-center gap-2 text-orange-400 font-semibold"><span>⚠️</span> <span className="text-gray-100">Profile links only (not branded)</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">Pay per lead via Boost</span></li>
+                <li className="flex items-center gap-2 text-orange-400 font-semibold"><span>⚠️</span> <span className="text-gray-100">Limited automation, not true AI</span></li>
+                <li className="flex items-center gap-2 text-red-400 font-semibold"><span>❌</span> <span className="text-gray-100">Subscription + varying platform fees</span></li>
+              </ul>
             </motion.div>
           </div>
         </div>
@@ -345,7 +289,7 @@ export default function LandingPage() {
             {...fadeUp(0.2)}
             className="text-xl text-gray-400 mb-16"
           >
-            One plan. All features. Keep 100% of your money.
+            {/* Removed per request */}
           </motion.p>
 
           <motion.div
@@ -353,7 +297,7 @@ export default function LandingPage() {
             className="bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-750 hover:to-gray-850 border border-purple-500/20 hover:border-purple-400/40 hover-lift hover:shadow-2xl hover:shadow-purple-500/20 rounded-xl p-8 max-w-md mx-auto text-center transition-all duration-300"
           >
             <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
-              Stylist Pro
+              {/* Removed per request */}
             </h3>
             
             <p className="text-5xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-6">
@@ -424,7 +368,7 @@ export default function LandingPage() {
               Flow Styles
             </h3>
             <p className="mt-2 text-gray-400">
-              The smart way to run your beauty business
+              The smart way to run your beauty & wellness business
             </p>
           </div>
           

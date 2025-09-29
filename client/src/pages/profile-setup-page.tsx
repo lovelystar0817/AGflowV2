@@ -388,10 +388,11 @@ export default function ProfileSetupPage() {
                 <div>
                   <h4 className="text-sm font-medium mb-4">Services by Category</h4>
                   <Tabs value={activeServicesTab} onValueChange={setActiveServicesTab}>
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                       <TabsTrigger value="hairstylist">Hairstylist</TabsTrigger>
                       <TabsTrigger value="barber">Barber</TabsTrigger>
                       <TabsTrigger value="nail-tech">Nail Tech</TabsTrigger>
+                      <TabsTrigger value="massage-therapist">Massage Therapist</TabsTrigger>
                       <TabsTrigger value="other">Other</TabsTrigger>
                     </TabsList>
                     
@@ -482,6 +483,43 @@ export default function ProfileSetupPage() {
                             />
                             <label
                               htmlFor={`nail-tech-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    {/* Massage Therapist Services Tab */}
+                    <TabsContent value="massage-therapist" className="mt-4">
+                      <div className="space-y-4">
+                        {DEFAULT_SERVICES_BY_TYPE["Massage Therapist"].map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={`massage-therapist-${service}`}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                            <label
+                              htmlFor={`massage-therapist-${service}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
                             >
                               {service}

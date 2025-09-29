@@ -4,13 +4,14 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enum for business types
-export const businessTypeEnum = pgEnum("business_type", ["Hairstylist", "Barber", "Nail Technician"]);
+export const businessTypeEnum = pgEnum("business_type", ["Hairstylist", "Barber", "Nail Technician", "Massage Therapist"]);
 
 // Default services by business type - shared between profile setup and business settings
 export const DEFAULT_SERVICES_BY_TYPE = {
   Hairstylist: ["Women's Cut", "Blowout", "Color & Highlights", "Silk Press", "Deep Conditioning"],
   Barber: ["Men's Haircut", "Beard Trim", "Fade / Taper", "Line Up", "Hot Towel Shave"],
   "Nail Technician": ["Gel Manicure", "Acrylic Full Set", "Nail Art Design", "Dip Powder Nails", "Pedicure"],
+  "Massage Therapist": ["Swedish Massage", "Deep Tissue Massage", "Sports Massage", "Prenatal Massage", "Hot Stone Massage"],
 } as const;
 
 // Session table for authentication
