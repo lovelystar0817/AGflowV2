@@ -163,7 +163,7 @@ export default function CustomizeAppPage() {
         <div className="mb-8">
           <Button
             variant="ghost"
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/dashboard")}
             className="mb-4"
             data-testid="button-back"
           >

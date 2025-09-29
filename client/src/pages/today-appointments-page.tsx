@@ -118,7 +118,7 @@ export default function TodayAppointmentsPage() {
   };
 
   const handleBackToDashboard = () => {
-    setLocation("/");
+    setLocation("/dashboard");
   };
 
   if (isLoading) {

@@ -81,7 +81,7 @@ export default function ClientPage() {
           <div className="text-center py-12">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Client Not Found</h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">The client you're looking for doesn't exist or you don't have access to it.</p>
-            <Button onClick={() => setLocation("/")}>
+            <Button onClick={() => setLocation("/dashboard")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Button>

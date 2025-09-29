@@ -243,7 +243,7 @@ export default function BusinessSettingsPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setLocation("/")}
+              onClick={() => setLocation("/dashboard")}
               data-testid="button-back"
             >
               <ArrowLeft className="h-4 w-4" />
