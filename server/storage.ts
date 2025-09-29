@@ -164,6 +164,11 @@ export class DatabaseStorage implements IStorage {
     return stylist || undefined;
   }
 
+  async getStylistBySlug(slug: string): Promise<Stylist | undefined> {
+    const [stylist] = await db.select().from(stylists).where(eq(stylists.appSlug, slug));
+    return stylist || undefined;
+  }
+
   async createStylist(insertStylist: InsertStylist): Promise<Stylist> {
     const [stylist] = await db
       .insert(stylists)
@@ -278,10 +283,12 @@ export class DatabaseStorage implements IStorage {
     // Build where condition
     let whereCondition = eq(stylistServices.stylistId, stylistId);
     if (q && q.trim()) {
-      whereCondition = and(
+      const cond = and(
         eq(stylistServices.stylistId, stylistId),
         ilike(stylistServices.serviceName, `%${q.trim()}%`)
       );
+      // 'and' can be typed as SQL | undefined; ensure a defined fallback
+      whereCondition = cond ?? whereCondition;
     }
 
     // Get items with pagination
@@ -371,10 +378,11 @@ export class DatabaseStorage implements IStorage {
     let whereCondition = eq(clients.stylistId, stylistId);
     if (q && q.trim()) {
       const searchPattern = `%${q.trim()}%`;
-      whereCondition = and(
+      const cond = and(
         eq(clients.stylistId, stylistId),
         sql`(${clients.firstName} ILIKE ${searchPattern} OR ${clients.lastName} ILIKE ${searchPattern} OR ${clients.email} ILIKE ${searchPattern} OR ${clients.phone} ILIKE ${searchPattern})`
       );
+      whereCondition = cond ?? whereCondition;
     }
 
     // Get items with pagination
@@ -511,16 +519,18 @@ export class DatabaseStorage implements IStorage {
     // Build where condition
     let whereCondition = eq(appointments.stylistId, stylistId);
     if (date) {
-      whereCondition = and(eq(appointments.stylistId, stylistId), eq(appointments.date, date));
+      const condDate = and(eq(appointments.stylistId, stylistId), eq(appointments.date, date));
+      whereCondition = condDate ?? whereCondition;
     }
     if (q && q.trim()) {
       const baseCondition = date 
-        ? and(eq(appointments.stylistId, stylistId), eq(appointments.date, date))
+        ? (and(eq(appointments.stylistId, stylistId), eq(appointments.date, date)) ?? eq(appointments.stylistId, stylistId))
         : eq(appointments.stylistId, stylistId);
-      whereCondition = and(
+      const cond = and(
         baseCondition,
         ilike(appointments.status, `%${q.trim()}%`)
       );
+      whereCondition = cond ?? baseCondition;
     }
 
     // Get items with pagination
@@ -758,10 +768,11 @@ export class DatabaseStorage implements IStorage {
     let whereCondition = eq(coupons.stylistId, stylistId);
     if (q && q.trim()) {
       const searchPattern = `%${q.trim()}%`;
-      whereCondition = and(
+      const cond = and(
         eq(coupons.stylistId, stylistId),
-        sql`(${coupons.title} ILIKE ${searchPattern} OR ${coupons.description} ILIKE ${searchPattern})`
+        ilike(coupons.name, searchPattern)
       );
+      whereCondition = cond ?? whereCondition;
     }
 
     // Get items with pagination

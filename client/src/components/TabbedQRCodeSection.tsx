@@ -23,6 +23,8 @@ export default function TabbedQRCodeSection({
   const { toast } = useToast();
   const [qrSize, setQrSize] = useState(200);
   const [currentSubTab, setCurrentSubTab] = useState(activeSubTab);
+  const [appQrImageUrl, setAppQrImageUrl] = useState<string | null>(null);
+  const [appQrLoading, setAppQrLoading] = useState(false);
 
   // Update internal state when prop changes
   useEffect(() => {
@@ -37,6 +39,21 @@ export default function TabbedQRCodeSection({
   // Generate URLs
   const bookingUrl = `${window.location.origin}/book/${user.id}`;
   const appUrl = user.appSlug ? `${window.location.origin}/app/${user.appSlug}` : null;
+
+  // Fetch saved App QR image (data URL) if available
+  useEffect(() => {
+    if (!user?.id) return;
+    setAppQrLoading(true);
+    fetch(`/api/stylists/${user.id}/app-qr`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = await res.json();
+        return (data && typeof data.appQrCodeUrl === "string") ? data.appQrCodeUrl : null;
+      })
+      .then((url) => setAppQrImageUrl(url))
+      .catch(() => setAppQrImageUrl(null))
+      .finally(() => setAppQrLoading(false));
+  }, [user?.id]);
 
   const copyToClipboard = async (text: string, type: string) => {
     try {
@@ -56,6 +73,18 @@ export default function TabbedQRCodeSection({
 
   const downloadQRCode = (id: string, fileName: string) => {
     try {
+      // If we already have a PNG data URL from server, download that directly
+      if (id === "app-qr-code-svg" && appQrImageUrl && appQrImageUrl.startsWith("data:image/")) {
+        const link = document.createElement("a");
+        link.download = fileName;
+        link.href = appQrImageUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({ title: "QR Code downloaded!", description: "Your QR code has been saved as an image." });
+        return;
+      }
+
       const svg = document.getElementById(id) as SVGElement | null;
       if (!svg) {
         toast({
@@ -277,14 +306,25 @@ export default function TabbedQRCodeSection({
                 <CardContent className="space-y-4">
                   {/* QR Code */}
                   <div className="flex justify-center">
-                    <div className="p-4 bg-white rounded-lg shadow-sm border">
-                      <QRCode
-                        id="app-qr-code-svg"
-                        value={appUrl}
-                        size={qrSize}
-                        level="M"
-                        includeMargin={true}
-                      />
+                    <div className="p-4 bg-white rounded-lg shadow-sm border" style={{ width: qrSize + 32, height: qrSize + 32 }}>
+                      {appQrLoading ? (
+                        <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">Loading...</div>
+                      ) : appQrImageUrl ? (
+                        <img
+                          src={appQrImageUrl}
+                          alt="App QR Code"
+                          className="mx-auto"
+                          style={{ width: qrSize, height: qrSize }}
+                        />
+                      ) : (
+                        <QRCode
+                          id="app-qr-code-svg"
+                          value={appUrl}
+                          size={qrSize}
+                          level="M"
+                          includeMargin={true}
+                        />
+                      )}
                     </div>
                   </div>
 

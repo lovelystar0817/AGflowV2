@@ -103,7 +103,7 @@ export default function CouponSendPage() {
         title: "Coupon sent successfully!",
         description: "Your coupon has been delivered to the selected clients.",
       });
-      navigate("/"); // Navigate back to dashboard
+      navigate("/dashboard"); // Navigate back to dashboard
     },
     onError: (error: Error) => {
       toast({
@@ -183,7 +183,7 @@ export default function CouponSendPage() {
               {couponError?.message || "Coupon not found"}
             </p>
           </div>
-          <Button onClick={() => navigate("/")} data-testid="button-back-to-dashboard">
+          <Button onClick={() => navigate("/dashboard")} data-testid="button-back-to-dashboard">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Dashboard
           </Button>
@@ -202,7 +202,7 @@ export default function CouponSendPage() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 data-testid="button-back"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -513,7 +513,7 @@ export default function CouponSendPage() {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => navigate("/")}
+                    onClick={() => navigate("/dashboard")}
                     data-testid="button-cancel"
                   >
                     Cancel

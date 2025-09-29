@@ -221,7 +221,7 @@ export default function ProfileSetupPage() {
           : "Your business profile has been updated successfully.",
       });
       
-      navigate("/");
+      navigate("/dashboard");
     },
     onError: (error: Error) => {
       toast({
@@ -309,7 +309,7 @@ export default function ProfileSetupPage() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 className="h-8 w-8 sm:h-10 sm:w-10 transition-enhanced hover-lift flex-shrink-0"
                 data-testid="button-back"
               >
@@ -819,7 +819,7 @@ export default function ProfileSetupPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 data-testid="button-cancel"
               >
                 Cancel

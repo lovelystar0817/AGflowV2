@@ -11,6 +11,10 @@ const PROMOTION_JOB_CRON = process.env.PROMOTION_RULE_CRON || '0 7 * * *';
 const PROMOTION_JOB_TZ = process.env.PROMOTION_RULE_TZ || 'UTC';
 
 async function scheduleNightlyPromotionJob(): Promise<void> {
+  if (!notificationsQueue) {
+    console.log('Redis/queue disabled - skipping scheduling of promotion automation job');
+    return;
+  }
   try {
     const repeatableJobs = await notificationsQueue.getRepeatableJobs();
     const existingJob = repeatableJobs.find((job) => job.id === PROMOTION_JOB_ID || job.name === PROMOTION_JOB_NAME);
@@ -45,8 +49,8 @@ async function scheduleNightlyPromotionJob(): Promise<void> {
   }
 }
 
-// Create Worker instance for "notifications" queue
-export const notificationWorker = new Worker('notifications', async (job: Job) => {
+// Create Worker instance for "notifications" queue only if Redis connection is available
+export const notificationWorker = connection ? new Worker('notifications', async (job: Job) => {
   const requestId = nanoid();
 
   try {
@@ -111,58 +115,70 @@ export const notificationWorker = new Worker('notifications', async (job: Job) =
     throw error; // Re-throw to trigger retry mechanism
   }
 }, {
-  connection,
+  connection: connection!,
   concurrency: 5, // Process up to 5 jobs concurrently
-});
+}) : undefined;
 
 // Handle worker events
-notificationWorker.on('completed', (job: Job, result: any) => {
-  console.log(`Worker completed job ${job.id} with result:`, result);
-});
-
-notificationWorker.on('failed', (job: Job | undefined, error: Error) => {
-  const requestId = nanoid();
-  console.error(`[${requestId}] Worker failed processing job ${job?.id}:`, {
-    jobId: job?.id,
-    jobName: job?.name,
-    attemptsMade: job?.attemptsMade,
-    error: error.message,
-    stack: error.stack,
-    timestamp: new Date().toISOString()
+if (notificationWorker) {
+  notificationWorker.on('completed', (job: Job, result: any) => {
+    console.log(`Worker completed job ${job.id} with result:`, result);
   });
-});
 
-notificationWorker.on('error', (error: Error) => {
-  const requestId = nanoid();
-  console.error(`[${requestId}] Worker error:`, {
-    error: error.message,
-    stack: error.stack,
-    timestamp: new Date().toISOString()
+  notificationWorker.on('failed', (job: Job | undefined, error: Error) => {
+    const requestId = nanoid();
+    console.error(`[${requestId}] Worker failed processing job ${job?.id}:`, {
+      jobId: job?.id,
+      jobName: job?.name,
+      attemptsMade: job?.attemptsMade,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
   });
-});
 
-notificationWorker.on('ready', () => {
-  console.log('Notification worker is ready and waiting for jobs');
-  void scheduleNightlyPromotionJob();
-});
+  notificationWorker.on('error', (error: Error) => {
+    const requestId = nanoid();
+    console.error(`[${requestId}] Worker error:`, {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  });
 
-notificationWorker.on('stalled', (jobId: string) => {
-  const requestId = nanoid();
-  console.warn(`[${requestId}] Job ${jobId} stalled and will be retried`);
-});
+  notificationWorker.on('ready', () => {
+    console.log('Notification worker is ready and waiting for jobs');
+    void scheduleNightlyPromotionJob();
+  });
+
+  notificationWorker.on('stalled', (jobId: string) => {
+    const requestId = nanoid();
+    console.warn(`[${requestId}] Job ${jobId} stalled and will be retried`);
+  });
+} else {
+  console.log('Redis disabled - notification worker not started');
+}
 
 // Graceful shutdown handling
 process.on('SIGINT', async () => {
   console.log('Shutting down worker gracefully...');
-  await notificationWorker.close();
-  await connection.quit();
+  if (notificationWorker) {
+    await notificationWorker.close();
+  }
+  if (connection) {
+    await connection.quit();
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('Shutting down worker gracefully...');
-  await notificationWorker.close();
-  await connection.quit();
+  if (notificationWorker) {
+    await notificationWorker.close();
+  }
+  if (connection) {
+    await connection.quit();
+  }
   process.exit(0);
 });
 

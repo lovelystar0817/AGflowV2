@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Download, QrCode, ExternalLink, Smartphone, Palette } from "lucide-react";
 import { type Stylist } from "@shared/schema";
-import { AppQRCode } from "@/components/AppQRCode";
+import AppQRCode from "@/components/AppQRCode";
 
 interface QRCodeSectionProps {
   user: Stylist;
@@ -259,48 +259,7 @@ export default function QRCodeSection({ user }: QRCodeSectionProps) {
 
         {/* App Tab */}
         <TabsContent value="app" className="space-y-6">
-          {/* Tab Info */}
-          <div className="bg-purple-50 dark:bg-purple-950/50 p-3 rounded-lg border border-purple-200 dark:border-purple-800">
-            <p className="text-sm text-purple-800 dark:text-purple-200">
-              <strong>App QR Code:</strong> Share this QR code so clients can view your full branded app page. Updates automatically when you change themes, portfolio, or business info.
-            </p>
-          </div>
-
-          {user.appSlug ? (
-            <AppQRCode 
-              stylistId={user.id}
-              appSlug={user.appSlug}
-            />
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Palette className="h-5 w-5" />
-                  App QR Code Not Available
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-center py-8">
-                <div className="max-w-md mx-auto">
-                  <div className="h-16 w-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Palette className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                    Customize Your App First
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    Create your branded app page by customizing themes and adding portfolio photos. Once saved, your App QR Code will be generated automatically.
-                  </p>
-                  <Button
-                    onClick={() => window.location.href = "/dashboard/customize-app"}
-                    className="w-full"
-                  >
-                    <Palette className="h-4 w-4 mr-2" />
-                    Customize My App
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <AppQRCode stylistId={user.id} />
         </TabsContent>
       </Tabs>
     </div>

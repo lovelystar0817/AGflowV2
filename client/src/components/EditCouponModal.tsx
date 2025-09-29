@@ -15,6 +15,10 @@ export type CouponForEditing = {
   discountValue: string;
   conditions: string;
   expiration: string;
+  // extra fields needed for update payload fallback
+  name?: string;
+  serviceId?: number | null;
+  startDate?: string;
 };
 
 type EditCouponModalProps = {

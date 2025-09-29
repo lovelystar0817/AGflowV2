@@ -113,7 +113,6 @@ export function setupAuth(app: Express) {
         lastName: validatedData.lastName,
         businessName: validatedData.businessName,
         password: await hashPassword(validatedData.password),
-        showPhone: false,
         portfolioPhotos: [],
         themeId: 1,
         appSlug: `${validatedData.firstName.toLowerCase()}-${validatedData.lastName.toLowerCase()}`,

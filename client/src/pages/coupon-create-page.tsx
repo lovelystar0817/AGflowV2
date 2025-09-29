@@ -66,7 +66,7 @@ export default function CouponCreatePage() {
         title: "Coupon created successfully!",
         description: "Your new coupon is ready to be sent to clients.",
       });
-      navigate("/"); // Navigate back to dashboard
+      navigate("/dashboard"); // Navigate back to dashboard
     },
     onError: (error: Error) => {
       toast({
@@ -100,7 +100,7 @@ export default function CouponCreatePage() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 data-testid="button-back"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -345,7 +345,7 @@ export default function CouponCreatePage() {
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 data-testid="button-cancel"
               >
                 Cancel

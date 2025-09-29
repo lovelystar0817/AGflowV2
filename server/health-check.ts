@@ -44,6 +44,9 @@ export async function healthCheck(req: Request, res: Response) {
     // Redis health check
     const redisStartTime = Date.now();
     try {
+      if (!redisConnection) {
+        throw new Error('Redis not connected');
+      }
       await redisConnection.ping();
       healthStatus.checks.redis = {
         status: 'healthy',

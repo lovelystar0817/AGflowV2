@@ -40,7 +40,11 @@ export function AssistantHistory() {
       return response.json();
     },
     onMutate: (actionLogId: string) => {
-      setUndoingIds(prev => new Set([...prev, actionLogId]));
+      setUndoingIds(prev => {
+        const next = new Set(prev);
+        next.add(actionLogId);
+        return next;
+      });
     },
     onSuccess: (data, actionLogId) => {
       toast({
