@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { stylists, stylistServices, appointments, clients, stylistAvailability, coupons, couponDeliveries } from "./schema";
+import { stylists, stylistServices, appointments, clients, stylistAvailability, coupons, couponDeliveries, messages } from "./schema";
 
 export const stylistServicesRelations = relations(stylistServices, ({one, many}) => ({
 	stylist: one(stylists, {

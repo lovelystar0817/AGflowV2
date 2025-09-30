@@ -7,7 +7,8 @@ import { postLimiter } from "./index";
 import csrf from "csrf";
 import { storage } from "./storage-instance";
 import { type PaginationParams, type PaginatedResponse } from "./storage";
-import { insertClientSchema, updateProfileSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { insertClientSchema, updateProfileSchema, updateTemplateSchema, serviceFormSchema, availabilitySchema, insertAppointmentSchema, insertCouponSchema, couponFormSchema, insertCouponDeliverySchema, insertNotificationSchema, scheduleReminderSchema, getSlotEndTime, coupons, stylists, type Client, type InsertStylistService, type Appointment, type Coupon, type CouponDelivery, type InsertCouponDelivery, calculateCouponEndDate } from "@shared/schema";
+import { ensureStylistHasAppSlug } from "./slug-utils";
 import { z } from "zod";
 import { parseAICommand, parseSchedulingCommand, routePrompt } from "./openai-service";
 import { executeAction } from "./ai-handlers";
@@ -25,6 +26,21 @@ const writeFile = promisify(fs.writeFile);
 const mkdir = promisify(fs.mkdir);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Dev-only CSP headers to allow unsafe-eval (fixes plugin/extension errors)
+  if (process.env.NODE_ENV !== 'production') {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      res.setHeader('Content-Security-Policy', 
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: wss: https: http:; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; " +
+        "style-src 'self' 'unsafe-inline' https: http:; " +
+        "font-src 'self' data: https: http:; " +
+        "img-src 'self' data: blob: https: http:; " +
+        "connect-src 'self' ws: wss: https: http:;"
+      );
+      next();
+    });
+  }
+
   // Register staging routes if in staging environment
   registerStagingRoutes(app);
   
@@ -239,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const client = await storage.getClient(req.params.id);
+  const client = await storage.getClient(req.params.id, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -285,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const client = await storage.getClient(req.params.id);
+  const client = await storage.getClient(req.params.id, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -302,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
-      const updatedClient = await storage.updateClient(req.params.id, validation.data);
+  const updatedClient = await storage.updateClient(req.params.id, req.user.id, validation.data);
       res.json(updatedClient);
     } catch (error) {
       console.error("Error updating client:", error);
@@ -316,7 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const client = await storage.getClient(req.params.id);
+  const client = await storage.getClient(req.params.id, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -326,7 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
       
-      await storage.deleteClient(req.params.id);
+  await storage.deleteClient(req.params.id, req.user.id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting client:", error);
@@ -459,7 +475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isCustom: validation.data.isCustom,
       };
       
-      const updatedService = await storage.updateStylistService(serviceId, updates);
+  const updatedService = await storage.updateStylistService(serviceId, req.user.id, updates);
       res.json(updatedService);
     } catch (error) {
       console.error("Error updating service:", error);
@@ -506,7 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue with deletion if check fails
       }
       
-      await storage.deleteStylistService(serviceId);
+  await storage.deleteStylistService(serviceId, req.user.id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting service:", error);
@@ -620,15 +636,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user) {
         return res.status(401).json({ error: "Unauthorized" });
       }
-      
-      const validation = updateProfileSchema.safeParse(req.body);
-      
-      if (!validation.success) {
-        return res.status(400).json({ error: "Invalid profile data", details: validation.error.errors });
+      // Discriminate between template updates and profile updates by checking known keys
+      const isTemplateUpdate = ['themeId', 'portfolioPhotos'].some(k => Object.prototype.hasOwnProperty.call(req.body || {}, k));
+      let updatedStylist;
+
+      if (isTemplateUpdate) {
+        const validation = updateTemplateSchema.safeParse(req.body);
+        if (!validation.success) {
+          return res.status(400).json({ error: "Invalid data", details: validation.error.errors });
+        }
+        // Reuse profile updater to persist template fields as well
+        updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data as any);
+      } else {
+        const validation = updateProfileSchema.safeParse(req.body);
+        if (!validation.success) {
+          return res.status(400).json({ error: "Invalid data", details: validation.error.errors });
+        }
+        updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data);
       }
-      
-      const updatedStylist = await storage.updateStylistProfile(req.user.id, validation.data);
-      
+
       // Remove passwordHash from response for security
       const { passwordHash, ...stylistResponse } = updatedStylist;
       
@@ -671,6 +697,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stylistResponse);
     } catch (error) {
       console.error("Error updating business settings:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // QR Code management routes
+  app.post("/api/stylists/:id/app-qr", async (req, res) => {
+    try {
+      const stylistId = req.params.id;
+      const userId = req.user?.id;
+
+      if (!userId || userId !== stylistId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      // Fetch stylist record
+      const [stylist] = await db
+        .select()
+        .from(stylists)
+        .where(eq(stylists.id, stylistId));
+
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+
+      // 1. If slug doesn’t exist, generate and save it
+      let slug = stylist.appSlug;
+      if (!slug) {
+        slug = (stylist.businessName || `${stylist.firstName || ''} ${stylist.lastName || ''}`)
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9\-]/g, "")
+          .replace(/^-+|-+$/g, "");
+
+        // Ensure slug isn't empty after sanitization
+        if (!slug) slug = `stylist-${stylistId.slice(0, 8)}`;
+
+        await db
+          .update(stylists)
+          .set({ appSlug: slug })
+          .where(eq(stylists.id, stylistId));
+      }
+
+  // 2. Generate QR code URL
+  const publicUrl = process.env.PUBLIC_URL || "http://127.0.0.1:5174";
+  const appUrl = `${publicUrl}/app/${slug}`;
+  const { toDataURL } = await import('qrcode');
+  const qrCodeDataUrl = await toDataURL(appUrl);
+
+      // 3. Save QR code in DB
+      await db
+        .update(stylists)
+        .set({ appQrCodeUrl: qrCodeDataUrl })
+        .where(eq(stylists.id, stylistId));
+
+      res.json({ appUrl, appQrCodeUrl: qrCodeDataUrl });
+    } catch (err) {
+      console.error('Error generating app QR:', err);
+      res.status(500).json({ error: "Failed to generate QR code" });
+    }
+  });
+
+  app.get("/api/stylists/:id/app-qr", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // Optional: keep access control (same stylist). If no auth, still return 200 with nulls.
+      const sameUser = req.user && id === req.user.id;
+
+      try {
+        const [stylist] = await db
+          .select({ appSlug: stylists.appSlug, appQrCodeUrl: stylists.appQrCodeUrl })
+          .from(stylists)
+          .where(eq(stylists.id, id));
+
+        const publicUrl = process.env.PUBLIC_URL || "http://127.0.0.1:5174";
+        const appUrl = stylist?.appSlug ? `${publicUrl}/app/${stylist.appSlug}` : null;
+
+        // Always return 200; frontend decides how to render
+        return res.json({ appUrl, appQrCodeUrl: stylist?.appQrCodeUrl ?? null, sameUser: !!sameUser });
+      } catch (dbError) {
+        console.error("QR code fetch error:", dbError);
+        return res.status(500).json({ error: "Failed to fetch QR code" });
+      }
+    } catch (error) {
+      console.error("Error fetching QR code:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -807,7 +917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // First check if the appointment exists and belongs to this stylist
-      const appointment = await storage.getAppointment(id);
+  const appointment = await storage.getAppointment(id, req.user.id);
       if (!appointment) {
         return res.status(404).json({ error: "Appointment not found" });
       }
@@ -859,7 +969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify client belongs to the stylist
-      const client = await storage.getClient(clientId);
+  const client = await storage.getClient(clientId, req.user.id);
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
@@ -915,7 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
       
-      const appointment = await storage.getAppointment(req.params.id);
+  const appointment = await storage.getAppointment(req.params.id, req.user.id);
       if (!appointment) {
         return res.status(404).json({ error: "Appointment not found" });
       }
@@ -1112,7 +1222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove duration from update data as it's not a database field
       delete updateData.duration;
 
-      const updatedCoupon = await storage.updateCoupon(req.params.id, updateData);
+  const updatedCoupon = await storage.updateCoupon(req.params.id, req.user.id, updateData);
       res.json(updatedCoupon);
     } catch (error) {
       console.error("Error updating coupon:", error);
@@ -1273,6 +1383,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Additional API routes can be added here
   // prefix all routes with /api
 
+  // Jobs management routes
+  app.get("/api/jobs", async (req, res) => {
+    try {
+      const { status, category, city, state } = req.query;
+
+      // Validate status parameter
+      if (!status || typeof status !== "string") {
+        return res.status(400).json({ error: "Status parameter is required" });
+      }
+
+      if (!["open", "claimed", "completed"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be 'open', 'claimed', or 'completed'" });
+      }
+
+      // Get jobs with filters
+      const jobs = await storage.getJobsByStatus(
+        status,
+        category as string | undefined,
+        city as string | undefined,
+        state as string | undefined
+      );
+
+      // If no jobs found and status is 'open', seed some fake jobs for testing
+      if (jobs.length === 0 && status === "open") {
+        const fakeJobs = [
+          {
+            id: "fake-job-1",
+            clientId: "fake-client-1",
+            title: "Haircut and Style",
+            description: "Looking for a professional haircut and styling service. I have thick, wavy hair that needs taming.",
+            category: "Hairstylist",
+            city: "Stamford",
+            state: "CT",
+            status: "open",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "fake-job-2",
+            clientId: "fake-client-2",
+            title: "Beard Trim and Shape",
+            description: "Need a clean beard trim and shaping. I want to maintain my current style but make it neat.",
+            category: "Barber",
+            city: "New Haven",
+            state: "CT",
+            status: "open",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "fake-job-3",
+            clientId: "fake-client-3",
+            title: "Gel Manicure",
+            description: "Professional gel manicure service needed. I prefer a natural look with clear or light pink polish.",
+            category: "Nail Technician",
+            city: "Hartford",
+            state: "CT",
+            status: "open",
+            createdAt: new Date().toISOString(),
+          }
+        ];
+
+        // Filter fake jobs by category if specified
+        const filteredFakeJobs = category
+          ? fakeJobs.filter(job => job.category.toLowerCase() === (category as string).toLowerCase())
+          : fakeJobs;
+
+        return res.json(filteredFakeJobs);
+      }
+
+      res.json(jobs);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/jobs", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { title, description, category, city, state } = req.body;
+
+      // Validate required fields
+      if (!title || !description || !category || !city || !state) {
+        return res.status(400).json({
+          error: "Missing required fields: title, description, category, city, and state are required"
+        });
+      }
+
+      // Validate category
+      const validCategories = ["Hairstylist", "Barber", "Nail Technician", "Massage Therapist"];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          error: `Invalid category. Must be one of: ${validCategories.join(", ")}`
+        });
+      }
+
+      // Create job
+      const jobData = {
+        clientId: req.user.id, // Client posting the job is the authenticated user
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        city: city.trim(),
+        state: state.trim(),
+        status: "open",
+        createdAt: new Date(),
+      };
+
+      const job = await storage.createJob(jobData);
+      res.status(201).json(job);
+    } catch (error) {
+      console.error("Error creating job:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Public booking API routes (no authentication required)
   app.get("/api/public/stylist/:id", async (req, res) => {
     try {
@@ -1288,14 +1516,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastName: stylist.lastName,
         businessName: stylist.businessName,
         location: stylist.location,
+        city: stylist.city,
+        state: stylist.state,
         bio: stylist.bio,
         instagramHandle: stylist.instagramHandle,
         businessHours: stylist.businessHours,
+        appSlug: stylist.appSlug,
+        themeId: stylist.themeId,
+        portfolioPhotos: stylist.portfolioPhotos,
       };
       
       res.json(publicStylist);
     } catch (error) {
       console.error("Error fetching public stylist:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // GET /api/public/stylist/slug/:slug - public app page
+  app.get("/api/public/stylist/slug/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const stylist = await storage.getStylistBySlug(slug);
+      
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      
+      // Return public information including app customization
+      const publicStylist = {
+        id: stylist.id,
+        firstName: stylist.firstName,
+        lastName: stylist.lastName,
+        businessName: stylist.businessName,
+        location: stylist.location,
+        city: stylist.city,
+        state: stylist.state,
+        bio: stylist.bio,
+        instagramHandle: stylist.instagramHandle,
+        businessHours: stylist.businessHours,
+        appSlug: stylist.appSlug,
+        themeId: stylist.themeId,
+        portfolioPhotos: stylist.portfolioPhotos,
+      };
+      
+      res.json(publicStylist);
+    } catch (error) {
+      console.error("Error fetching stylist by slug:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -1370,7 +1637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (Object.keys(updateData).length > 0) {
-          const updatedClient = await storage.updateClient(existingClient.id, updateData);
+          const updatedClient = await storage.updateClient(existingClient.id, stylistId, updateData);
           client = updatedClient;
         }
       } else {
@@ -1510,6 +1777,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/service-providers/search - Search for service providers by business type and location
+  app.get("/api/service-providers/search", async (req, res) => {
+    try {
+      const { type, city, state } = req.query;
+
+      // Validate required query parameters
+      if (!type || !city || !state) {
+        return res.status(400).json({ 
+          error: "Missing required query parameters: type, city, and state are required" 
+        });
+      }
+
+      // For now, return mock data (2-3 seeded objects)
+      // TODO: Replace with real database queries when ClientHub integration is ready
+      const mockProviders = [
+        {
+          id: "mock-provider-1",
+          businessName: "Elegant Styles Salon",
+          businessType: type as string,
+          bio: "Professional hairstylist with 10+ years of experience specializing in modern cuts and color treatments.",
+          city: city as string,
+          state: state as string,
+          services: ["Women's Cut & Style", "Hair Coloring", "Balayage", "Keratin Treatment"],
+          portfolio: ["https://example.com/portfolio1.jpg", "https://example.com/portfolio2.jpg"]
+        },
+        {
+          id: "mock-provider-2", 
+          businessName: "Urban Cuts Barbershop",
+          businessType: type as string,
+          bio: "Traditional barber offering classic cuts, hot towel shaves, and modern styling for men.",
+          city: city as string,
+          state: state as string,
+          services: ["Men's Haircut", "Beard Trim", "Hot Towel Shave", "Line Up"],
+          portfolio: ["https://example.com/portfolio3.jpg", "https://example.com/portfolio4.jpg"]
+        },
+        {
+          id: "mock-provider-3",
+          businessName: "Nail Art Studio",
+          businessType: type as string,
+          bio: "Creative nail technician specializing in gel manicures, acrylic sets, and custom nail art designs.",
+          city: city as string,
+          state: state as string,
+          services: ["Gel Manicure", "Acrylic Full Set", "Nail Art Design", "Pedicure"],
+          portfolio: ["https://example.com/portfolio5.jpg", "https://example.com/portfolio6.jpg"]
+        }
+      ];
+
+      // Filter mock providers by business type (all will match since we set the type above)
+      const filteredProviders = mockProviders.filter(provider => 
+        provider.businessType.toLowerCase() === (type as string).toLowerCase()
+      );
+
+      res.json({
+        providers: filteredProviders,
+        total: filteredProviders.length,
+        query: { type, city, state }
+      });
+    } catch (error) {
+      console.error("Error searching service providers:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Messages API endpoints
+  app.get("/api/messages/:conversationId", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { conversationId } = req.params;
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Conversation ID is required" });
+      }
+
+      // Get messages for this conversation
+      const messages = await storage.getMessagesByConversation(conversationId, req.user.id);
+
+      res.json({ messages });
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/messages", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { receiverId, content } = req.body;
+
+      if (!receiverId || !content) {
+        return res.status(400).json({ error: "Receiver ID and content are required" });
+      }
+
+      if (!content.trim()) {
+        return res.status(400).json({ error: "Message content cannot be empty" });
+      }
+
+      // Generate conversation ID (sorted combination of sender and receiver IDs)
+      const conversationId = [req.user.id, receiverId].sort().join('-');
+
+      // Create the message
+      const message = await storage.createMessage({
+        conversationId,
+        senderId: req.user.id,
+        senderType: 'stylist',
+        receiverId,
+        receiverType: 'client', // For now, assume stylist to client messaging
+        content: content.trim(),
+        isRead: false
+      });
+
+      res.status(201).json({ message });
+    } catch (error) {
+      console.error("Error creating message:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // AI Analytics endpoints
   app.get("/api/ai/clients-last-visit", async (req, res) => {
     try {
@@ -1594,7 +1984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { action, args, idempotencyKey } = req.body;
+  const { action, args, idempotencyKey } = req.body;
       
       if (!action || typeof action !== "string") {
         return res.status(400).json({ error: "Action is required" });
@@ -1610,7 +2000,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Confirming AI action: "${action}" for stylist ${req.user.id}`, { args, requestId });
 
       // Execute action with tenant scoping (stylistId from session, never from input)
-      const result = await executeAction(req.user.id, action, args);
+      // Narrow action type to valid ActionName
+      const validActions = [
+        'addClient','updateClient','findClient','bookAppointment','rescheduleAppointment',
+        'blockTime','setBusinessHours','reminderSingle','remindersBulkNextDay','createCoupon','sendCoupon'
+      ] as const;
+      if (!validActions.includes(action as any)) {
+        return res.status(400).json({ error: `Invalid action: ${action}` });
+      }
+      const result = await executeAction(req.user.id, action as typeof validActions[number], args);
 
       // Log to audit trail
       try {
@@ -1700,11 +2098,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if already undone (look for a subsequent undo action)
-      const undoExists = allLogs.some(log => 
-        log.createdAt > actionLog.createdAt && 
-        log.action === 'undo' && 
-        log.args?.originalActionId === actionLogId
-      );
+      const undoExists = allLogs.some(log => {
+        const createdAt = log.createdAt as any;
+        const targetCreatedAt = actionLog.createdAt as any;
+        const args = (log.args || {}) as { originalActionId?: string };
+        return createdAt && targetCreatedAt && createdAt > targetCreatedAt && log.action === 'undo' && args.originalActionId === actionLogId;
+      });
 
       if (undoExists) {
         return res.json({ 
@@ -1720,10 +2119,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (actionLog.action) {
         case 'bookAppointment':
           // Cancel the booking
-          if (actionLog.result?.entity?.id) {
+          if ((actionLog.result as any)?.entity?.id) {
             try {
-              await storage.updateAppointment(actionLog.result.entity.id, req.user.id, { status: 'cancelled' });
-              undoMessage = `Cancelled appointment for ${actionLog.args.clientName}`;
+              const entityId = (actionLog.result as any).entity.id as string;
+              await storage.updateAppointment(entityId, req.user.id, { status: 'cancelled' });
+              const args = (actionLog.args as any) || {};
+              undoMessage = `Cancelled appointment for ${args.clientName || 'client'}`;
             } catch (error) {
               return res.status(400).json({ error: "Failed to cancel appointment - it may have already been cancelled" });
             }
@@ -1734,10 +2135,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         case 'addClient':
           // Delete the created client
-          if (actionLog.result?.entity?.id) {
+          if ((actionLog.result as any)?.entity?.id) {
             try {
-              await storage.deleteClient(actionLog.result.entity.id, req.user.id);
-              undoMessage = `Deleted client ${actionLog.args.name}`;
+              const entityId = (actionLog.result as any).entity.id as string;
+              await storage.deleteClient(entityId, req.user.id);
+              const args = (actionLog.args as any) || {};
+              undoMessage = `Deleted client ${args.name || ''}`.trim();
             } catch (error) {
               return res.status(400).json({ error: "Failed to delete client - they may have appointments or have already been deleted" });
             }
@@ -1753,7 +2156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case 'reminderSingle':
         case 'remindersBulkNextDay':
           // Cancel pending notifications
-          if (actionLog.result?.entity?.id) {
+          if ((actionLog.result as any)?.entity?.id) {
             try {
               // For now, we'll just mark as cancelled - would need updateNotification method
               undoMessage = `Cancelled reminder (note: already sent reminders cannot be unsent)`;
@@ -1835,7 +2238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Execute the AI action
       if (aiResponse.action === "send_coupon") {
-        const result = await executeSendCouponAction(aiResponse, stylist, req.user.id);
+        const result = await executeSendCouponAction(aiResponse, stylist, req.user.id, req);
         return res.json(result);
       }
 
@@ -1864,7 +2267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Helper function to execute send coupon action
-  async function executeSendCouponAction(aiResponse: any, stylist: any, stylistId: string) {
+  async function executeSendCouponAction(aiResponse: any, stylist: any, stylistId: string, req: Request) {
     try {
       // Validate GPT response has required fields
       if (!aiResponse.action || !aiResponse.weeksInactive || !aiResponse.amount) {
@@ -1921,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subject,
         scheduledAt: new Date(),
         logicRule: null
-      });
+      }, req);
 
       // Return how many clients received the offer and what the offer was
       return {
@@ -2324,7 +2727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // For rescheduling, we need to find the existing appointment
         if (aiResponse.existingAppointmentId) {
           // If AI provided appointment ID, use it
-          appointmentToReschedule = await storage.getAppointment(aiResponse.existingAppointmentId);
+          appointmentToReschedule = await storage.getAppointment(aiResponse.existingAppointmentId, req.user.id);
           if (!appointmentToReschedule || appointmentToReschedule.stylistId !== req.user.id) {
             return res.status(404).json({
               success: false,
@@ -2402,7 +2805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updatedAt: new Date(),
         };
         
-        appointment = await storage.updateAppointment(appointmentToReschedule.id, updateData);
+  appointment = await storage.updateAppointment(appointmentToReschedule.id, req.user.id, updateData);
       } else {
         // Create new appointment for booking
         const appointmentData = {
@@ -2602,6 +3005,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/test/queue", async (req, res) => {
     try {
       const { notificationsQueue } = await import('./queue');
+      if (!notificationsQueue) {
+        return res.status(503).json({ success: false, error: 'Notifications queue not available (Redis disabled?)' });
+      }
       const job = await notificationsQueue.add('test-job', { 
         message: 'hello',
         timestamp: new Date().toISOString()

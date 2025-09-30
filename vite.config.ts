@@ -36,5 +36,24 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    headers: {
+      // Dev-only permissive CSP to fix plugin/extension errors
+      'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: wss: https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline' https: http:; font-src 'self' data: https: http:; img-src 'self' data: blob: https: http:; connect-src 'self' ws: wss: https: http:;",
+    },
+    // Proxy API calls in development to the backend server running on :3000
+    // This keeps frontend fetch('/api/...') working regardless of the Vite port (5173/5174)
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+        secure: false,
+      },
+      // Also forward uploads to the backend so Set-Cookie headers flow correctly in dev
+      "/uploads": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 });

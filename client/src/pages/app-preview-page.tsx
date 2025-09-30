@@ -19,7 +19,6 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { format, addDays, isSameDay, isToday } from "date-fns";
-import { ServiceButton } from "@/components/ServiceButton";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { APP_THEMES } from "@/lib/appThemes";
 import { useAuth } from "@/hooks/use-auth";
@@ -31,6 +30,8 @@ interface StylistProfile {
   lastName: string;
   businessName: string;
   location: string;
+  city: string;
+  state: string;
   bio: string;
   instagramHandle?: string;
   businessHours: any;
@@ -84,6 +85,10 @@ export default function AppPreviewPage() {
     enabled: !!user?.id,
   });
 
+  // Debug logging
+  console.log('AppPreviewPage - services query result:', services);
+  console.log('AppPreviewPage - services loading:', servicesLoading);
+
   if (!user) {
     return <div>Please log in to preview your app</div>;
   }
@@ -105,6 +110,11 @@ export default function AppPreviewPage() {
       </div>
     );
   }
+
+  // Combine city and state for location display
+  const combinedLocation = stylistProfile?.city && stylistProfile?.state 
+    ? `${stylistProfile.city}, ${stylistProfile.state}`
+    : stylistProfile?.location || "";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,7 +138,7 @@ export default function AppPreviewPage() {
           stylistId={stylistProfile?.id}
           stylistName={`${stylistProfile?.firstName} ${stylistProfile?.lastName}`}
           businessName={stylistProfile?.businessName || undefined}
-          location={stylistProfile?.location || ""}
+          location={combinedLocation}
           phone={stylistProfile?.phone || undefined}
           showPhone={stylistProfile?.showPhone || false}
           bio={stylistProfile?.bio || ""}

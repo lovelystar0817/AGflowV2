@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Download, QrCode, ExternalLink, Smartphone } from "lucide-react";
+import { Copy, Download, QrCode, ExternalLink, Smartphone, Palette } from "lucide-react";
 import { type Stylist } from "@shared/schema";
+import AppQRCode from "@/components/AppQRCode";
 
 interface QRCodeSectionProps {
   user: Stylist;
@@ -16,8 +18,9 @@ interface QRCodeSectionProps {
 export default function QRCodeSection({ user }: QRCodeSectionProps) {
   const { toast } = useToast();
   const [qrSize, setQrSize] = useState(200);
+  const [activeTab, setActiveTab] = useState("booking");
 
-  // Generate booking URL
+  // Generate URLs
   const bookingUrl = `${window.location.origin}/book/${user.id}`;
 
   const copyBookingLink = async () => {
@@ -94,143 +97,171 @@ export default function QRCodeSection({ user }: QRCodeSectionProps) {
 
   return (
     <div className="space-y-6">
-      {/* QR Code Display */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <QrCode className="h-5 w-5" />
-            Your Booking QR Code
-          </CardTitle>
-          <CardDescription>
-            Clients can scan this QR code to book appointments directly
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* QR Code */}
-          <div className="flex justify-center">
-            <div className="p-4 bg-white rounded-lg shadow-sm border">
-              <QRCode
-                id="qr-code-svg"
-                value={bookingUrl}
-                size={qrSize}
-                level="M"
-                includeMargin={true}
-                data-testid="qr-code"
-              />
-            </div>
-          </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="booking" className="flex items-center gap-2">
+            <QrCode className="h-4 w-4" />
+            Booking QR Code
+          </TabsTrigger>
+          <TabsTrigger value="app" className="flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            App QR Code
+          </TabsTrigger>
+        </TabsList>
 
-          {/* QR Size Control */}
-          <div className="space-y-2">
-            <Label htmlFor="qr-size">QR Code Size</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="qr-size"
-                type="range"
-                min="150"
-                max="300"
-                step="25"
-                value={qrSize}
-                onChange={(e) => setQrSize(parseInt(e.target.value))}
-                className="flex-1"
-                data-testid="slider-qr-size"
-              />
-              <span className="text-sm text-gray-500 w-12">{qrSize}px</span>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              onClick={downloadQRCode}
-              variant="outline"
-              className="flex-1"
-              data-testid="button-download-qr"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download QR Code
-            </Button>
-            <Button
-              onClick={openBookingPage}
-              variant="outline"
-              className="flex-1"
-              data-testid="button-preview-page"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Preview Page
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Booking Link */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Copy className="h-5 w-5" />
-            Booking Link
-          </CardTitle>
-          <CardDescription>
-            Share this direct link with your clients
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              value={bookingUrl}
-              readOnly
-              className="flex-1 font-mono text-sm"
-              data-testid="input-booking-url"
-            />
-            <Button
-              onClick={copyBookingLink}
-              variant="outline"
-              data-testid="button-copy-link"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Usage Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5" />
-            How to Use
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <h4 className="font-medium mb-2">QR Code:</h4>
-              <ul className="space-y-1 text-gray-600 dark:text-gray-400">
-                <li>• Print on business cards</li>
-                <li>• Display in your salon</li>
-                <li>• Share on social media</li>
-                <li>• Add to marketing materials</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium mb-2">Direct Link:</h4>
-              <ul className="space-y-1 text-gray-600 dark:text-gray-400">
-                <li>• Send via text message</li>
-                <li>• Share in emails</li>
-                <li>• Post on websites</li>
-                <li>• Include in signatures</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+        {/* Booking Tab */}
+        <TabsContent value="booking" className="space-y-6">
+          {/* Tab Info */}
+          <div className="bg-blue-50 dark:bg-blue-950/50 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              💡 <strong>Tip:</strong> Clients can book appointments without creating an account. 
-              They'll see your services, available times, and can book instantly!
+              <strong>Booking QR Code:</strong> Share this QR code so clients can book appointments directly. Perfect for business cards, flyers, and in-store displays.
             </p>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* QR Code Display */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                Your Booking QR Code
+              </CardTitle>
+              <CardDescription>
+                Share this QR code so clients can book appointments directly
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* QR Code */}
+              <div className="flex justify-center">
+                <div className="p-4 bg-white rounded-lg shadow-sm border">
+                  <QRCode
+                    id="qr-code-svg"
+                    value={bookingUrl}
+                    size={qrSize}
+                    level="M"
+                    includeMargin={true}
+                    data-testid="qr-code"
+                  />
+                </div>
+              </div>
+
+              {/* QR Size Control */}
+              <div className="space-y-2">
+                <Label htmlFor="qr-size">QR Code Size</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="qr-size"
+                    type="range"
+                    min="150"
+                    max="300"
+                    step="25"
+                    value={qrSize}
+                    onChange={(e) => setQrSize(parseInt(e.target.value))}
+                    className="flex-1"
+                    data-testid="slider-qr-size"
+                  />
+                  <span className="text-sm text-gray-500 w-12">{qrSize}px</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  onClick={downloadQRCode}
+                  variant="outline"
+                  className="flex-1"
+                  data-testid="button-download-qr"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download QR Code
+                </Button>
+                <Button
+                  onClick={openBookingPage}
+                  variant="outline"
+                  className="flex-1"
+                  data-testid="button-preview-page"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Preview Page
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Booking Link */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Copy className="h-5 w-5" />
+                Booking Link
+              </CardTitle>
+              <CardDescription>
+                Share this direct link with your clients
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={bookingUrl}
+                  readOnly
+                  className="flex-1 font-mono text-sm"
+                  data-testid="input-booking-url"
+                />
+                <Button
+                  onClick={copyBookingLink}
+                  variant="outline"
+                  data-testid="button-copy-link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Usage Instructions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5" />
+                How to Use
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h4 className="font-medium mb-2">QR Code:</h4>
+                  <ul className="space-y-1 text-gray-600 dark:text-gray-400">
+                    <li>• Print on business cards</li>
+                    <li>• Display in your salon</li>
+                    <li>• Share on social media</li>
+                    <li>• Add to marketing materials</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Direct Link:</h4>
+                  <ul className="space-y-1 text-gray-600 dark:text-gray-400">
+                    <li>• Send via text message</li>
+                    <li>• Share in emails</li>
+                    <li>• Post on websites</li>
+                    <li>• Include in signatures</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  💡 <strong>Tip:</strong> Clients can book appointments without creating an account. 
+                  They'll see your services, available times, and can book instantly!
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* App Tab */}
+        <TabsContent value="app" className="space-y-6">
+          <AppQRCode stylistId={user.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

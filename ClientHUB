@@ -1,0 +1,240 @@
+Comprehensive Application Breakdown: Client Dashboard App
+📋 Application Overview
+Purpose: This is a CLIENT-FACING dashboard for beauty and wellness services that allows clients to:
+
+Browse service providers (Hairstylists, Barbers, Nail Techs, Massage Therapists)
+Book appointments
+View provider portfolios
+Message providers
+Manage their hair history
+Search for services by location
+Current State: The frontend is complete but NO REAL SERVICE PROVIDERS ARE WIRED IN. It currently uses mock data (providers.json) showing zero providers after location filtering.
+
+🗄️ Database Schema (PostgreSQL)
+1. Users Table (users)
+- id: varchar (UUID primary key)
+- username: text (unique)
+- password: text
+- email: text (unique)
+- fullName: text
+- role: text (values: 'client', 'hairstylist', 'barber', 'nail_tech', 'massage_therapist')
+- profileImage: text (nullable)
+- bio: text (nullable)
+- location: text (nullable)
+- createdAt: timestamp
+Purpose: Stores both clients AND service providers. Role determines user type.
+
+2. Service Categories Table (service_categories)
+- id: varchar (UUID)
+- name: text
+- description: text (nullable)
+- icon: text (nullable)
+- color: text (nullable)
+Purpose: Service types (e.g., "Cuts & Styling", "Coloring", "Manicures")
+
+3. Services Table (services)
+- id: varchar (UUID)
+- hairstylistId: varchar (references users.id)
+- categoryId: varchar (references service_categories.id)
+- name: text
+- description: text (nullable)
+- basePrice: decimal(10,2)
+- duration: integer (minutes)
+- isActive: boolean (default true)
+- createdAt: timestamp
+Purpose: Services offered by individual providers.
+
+4. Bookings Table (bookings)
+- id: varchar (UUID)
+- clientId: varchar (references users.id)
+- hairstylistId: varchar (references users.id)
+- serviceId: varchar (references services.id)
+- appointmentDate: timestamp
+- duration: integer (minutes)
+- status: text ('pending', 'confirmed', 'completed', 'cancelled')
+- totalPrice: decimal(10,2)
+- notes: text (nullable)
+- createdAt: timestamp
+- updatedAt: timestamp
+Purpose: Appointment bookings between clients and providers.
+
+5. Portfolio Images Table (portfolio_images)
+- id: varchar (UUID)
+- hairstylistId: varchar (references users.id)
+- title: text (nullable)
+- description: text (nullable)
+- beforeImage: text (nullable)
+- afterImage: text (required)
+- serviceId: varchar (references services.id, nullable)
+- tags: json (array of strings)
+- createdAt: timestamp
+Purpose: Before/after images for provider portfolios.
+
+6. Messages Table (messages)
+- id: varchar (UUID)
+- senderId: varchar (references users.id)
+- recipientId: varchar (references users.id)
+- bookingId: varchar (references bookings.id, nullable)
+- content: text
+- messageType: text ('text', 'template', 'image')
+- templateId: varchar (nullable)
+- isRead: boolean (default false)
+- createdAt: timestamp
+Purpose: Direct messaging between clients and providers.
+
+7. Message Templates Table (message_templates)
+- id: varchar (UUID)
+- hairstylistId: varchar (references users.id, nullable)
+- name: text
+- content: text
+- category: text ('consultation', 'booking_confirmation', 'aftercare', 'follow_up')
+- isDefault: boolean (default false)
+- createdAt: timestamp
+Purpose: Pre-written message templates for providers.
+
+8. Hair History Table (hair_history)
+- id: varchar (UUID)
+- clientId: varchar (references users.id)
+- bookingId: varchar (references bookings.id, nullable)
+- hairType: text (nullable)
+- hairLength: text (nullable)
+- hairColor: text (nullable)
+- previousTreatments: json (array of strings)
+- allergies: text (nullable)
+- preferences: text (nullable)
+- notes: text (nullable)
+- createdAt: timestamp
+Purpose: Track client hair service history and preferences.
+
+🔌 API Endpoints (RESTful)
+Service Categories
+GET /api/service-categories - List all categories
+GET /api/service-categories/:id - Get single category
+POST /api/service-categories - Create category
+PUT /api/service-categories/:id - Update category
+DELETE /api/service-categories/:id - Delete category
+Services
+GET /api/services?hairstylistId=<id> - List services (optionally filtered by provider)
+GET /api/services/:id - Get single service
+POST /api/services - Create service
+PUT /api/services/:id - Update service
+DELETE /api/services/:id - Delete service
+Bookings
+GET /api/bookings?clientId=<id>&hairstylistId=<id> - List bookings (filtered)
+GET /api/bookings/:id - Get single booking
+POST /api/bookings - Create booking
+PUT /api/bookings/:id - Update booking
+PATCH /api/bookings/:id/status - Update booking status
+DELETE /api/bookings/:id - Delete booking
+Portfolio
+GET /api/portfolio/:hairstylistId - Get provider portfolio
+GET /api/portfolio/image/:id - Get single image
+POST /api/portfolio - Upload portfolio image
+PUT /api/portfolio/:id - Update image
+DELETE /api/portfolio/:id - Delete image
+Messages
+GET /api/messages/:userId - Get all messages for user
+GET /api/conversations/:userId1/:userId2 - Get conversation between two users
+GET /api/messages/single/:id - Get single message
+POST /api/messages - Send message
+PATCH /api/messages/:id/read - Mark message as read
+DELETE /api/messages/:id - Delete message
+Message Templates
+GET /api/message-templates/:hairstylistId - Get provider templates
+GET /api/message-templates/single/:id - Get single template
+POST /api/message-templates - Create template
+PUT /api/message-templates/:id - Update template
+DELETE /api/message-templates/:id - Delete template
+Hair History
+GET /api/hair-history/:clientId - Get client hair history
+GET /api/hair-history/entry/:id - Get single entry
+POST /api/hair-history - Create entry
+PUT /api/hair-history/:id - Update entry
+DELETE /api/hair-history/:id - Delete entry
+Service Providers
+GET /api/service-providers?role=<role> - List providers (optionally filtered by role)
+🔗 Critical Integration Points
+1. QuickRequest Flow (PRIORITY)
+File: client/src/components/QuickRequest.tsx
+
+Collects: category, urgency, state, city
+Currently shows zero providers for all locations
+NEEDS: API endpoint to search providers by location and category
+Suggested New Endpoint:
+
+GET /api/service-providers/search?category=<hairstylists|barbers|nailtechs|massage>&city=<city>&state=<state>
+2. Provider Location Data
+Current Issue: users.location is a single text field
+NEEDS: Separate fields for structured location queries:
+
+// Add to users table:
+- city: text
+- state: text (2-letter code)
+- zipCode: text
+3. Service Provider Dashboard (Your Other App)
+What It Needs:
+
+Same users table access (role-based)
+Same services, bookings, messages, portfolio_images tables
+Provider-side views of the same data
+Shared Tables:
+
+✅ users - Both apps use this
+✅ services - Providers create, clients view
+✅ bookings - Both apps read/write
+✅ messages - Bidirectional communication
+✅ portfolio_images - Providers upload, clients view
+✅ hair_history - Providers write, clients view
+📝 Required Schema Updates for Integration
+1. Add Location Fields to Users
+// In shared/schema.ts - users table:
+city: text("city"),
+state: text("state"), // 2-letter code
+zipCode: text("zip_code"),
+2. Add Provider Search Endpoint
+// In server/routes.ts:
+app.get("/api/service-providers/search", async (req, res) => {
+  const { category, city, state, zipCode } = req.query;
+  // Query users where role matches category + location filters
+});
+3. Update Storage Interface
+// In server/storage.ts IStorage interface:
+searchServiceProviders(filters: {
+  role?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+}): Promise<User[]>;
+🎯 Integration Checklist for Your Agent
+Database Updates:
+ Add city, state, zipCode columns to users table
+ Run npm run db:push to sync schema
+ Ensure both apps use same DATABASE_URL
+API Updates:
+ Create /api/service-providers/search endpoint
+ Add filtering logic by role + location
+ Return provider count by category and location
+Provider App Requirements:
+ Use same database schema (shared/schema.ts)
+ Provider onboarding must capture: city, state, zipCode
+ Provider dashboard shows: bookings, messages, services, portfolio
+ Real-time or polling for new bookings/messages
+Frontend Updates (This App):
+ Update ServicesSection to call search API with location
+ Show actual provider counts from API response
+ Enable provider detail pages
+ Enable booking creation flow
+🔄 Data Flow Example
+Client searches for "Hairstylists in Miami, FL":
+
+QuickRequest submits: { category: "hairstylists", city: "Miami", state: "FL" }
+API call: GET /api/service-providers/search?role=hairstylist&city=Miami&state=FL
+Returns array of matching providers with their services
+Display provider cards with:
+Name, bio, profile image
+Service offerings and prices
+Portfolio images
+"Book Now" button
+Client books → Creates booking record
+Provider app notifies provider of new booking
+Two-way messaging enabled through messages table

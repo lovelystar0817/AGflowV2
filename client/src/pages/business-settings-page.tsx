@@ -68,6 +68,10 @@ export default function BusinessSettingsPage() {
   const [showServiceReplaceDialog, setShowServiceReplaceDialog] = useState(false);
   const [newBusinessType, setNewBusinessType] = useState<string>("");
   const [linkCopied, setLinkCopied] = useState(false);
+  
+  // Check if we came from customize page
+  const urlParams = new URLSearchParams(window.location.search);
+  const fromCustomize = urlParams.get('from') === 'customize';
 
   // Fetch user data to populate form
   const { data: user, isLoading: userLoading } = useQuery({
@@ -107,30 +111,58 @@ export default function BusinessSettingsPage() {
   // Update business settings mutation
   const updateBusinessMutation = useMutation({
     mutationFn: async (data: BusinessSettingsFormData) => {
-      const response = await fetch("/api/business-settings", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          businessName: data.businessName,
-          businessType: data.businessType,
-          bio: data.businessDescription,
-          location: data.serviceArea,
-          smsSenderName: data.smsSenderName,
-          defaultAppointmentDuration: parseInt(data.defaultAppointmentDuration),
-          preferredSlotFormat: parseInt(data.preferredSlotFormat),
-          showPublicly: data.showPublicly,
-        }),
+      const response = await apiRequest("PUT", "/api/business-settings", {
+        businessName: data.businessName,
+        businessType: data.businessType,
+        bio: data.businessDescription,
+        location: data.serviceArea,
+        smsSenderName: data.smsSenderName,
+        defaultAppointmentDuration: parseInt(data.defaultAppointmentDuration),
+        preferredSlotFormat: parseInt(data.preferredSlotFormat),
+        showPublicly: data.showPublicly,
       });
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate all user-related queries
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      
+      // Invalidate public stylist queries that power the app preview
+      const userId = (user as any)?.id;
+      const appSlug = (user as any)?.appSlug;
+      
+      if (userId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist/${userId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist`, userId] });
+      }
+      if (appSlug) {
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist/slug/${appSlug}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/public/stylist/slug`, appSlug] });
+      }
+      
+      // Invalidate any queries that might cache bio information
+      queryClient.invalidateQueries({ predicate: (query) => {
+        return query.queryKey.some(key => 
+          typeof key === 'string' && (
+            key.includes('stylist') || 
+            key.includes('profile') || 
+            key.includes('user')
+          )
+        );
+      }});
+      
       toast({
         title: "Settings updated",
         description: "Your business settings have been saved successfully.",
       });
+      
+      // Route back to dashboard customize tab after saving if came from customize
+      if (fromCustomize) {
+        setTimeout(() => {
+          setLocation("/dashboard?tab=qr-code&subtab=app");
+        }, 1500);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -145,12 +177,8 @@ export default function BusinessSettingsPage() {
   const replaceServicesMutation = useMutation({
     mutationFn: async (businessType: string) => {
       const defaultServices = DEFAULT_SERVICES[businessType as keyof typeof DEFAULT_SERVICES];
-      const response = await fetch("/api/services/replace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ services: defaultServices }),
+      const response = await apiRequest("POST", "/api/services/replace", {
+        services: defaultServices
       });
       return response.json();
     },
@@ -226,7 +254,7 @@ export default function BusinessSettingsPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setLocation("/")}
+              onClick={() => setLocation(fromCustomize ? "/dashboard?tab=qr-code&subtab=app" : "/dashboard")}
               data-testid="button-back"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -234,7 +262,10 @@ export default function BusinessSettingsPage() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Business Settings</h1>
               <p className="text-muted-foreground">
-                Manage your business information and preferences
+                {fromCustomize 
+                  ? "Update your business bio and information" 
+                  : "Manage your business information and preferences"
+                }
               </p>
             </div>
           </div>

@@ -17,71 +17,54 @@ import {
 } from "lucide-react";
 
 export function MessagesPage() {
-  // Mock data for demonstration
-  const conversations = [
-    {
-      id: 1,
-      clientName: "Sarah Johnson",
-      lastMessage: "Thank you for the great haircut! Can we schedule another appointment?",
-      timestamp: "2 min ago",
-      unread: true,
-      avatar: null,
-      status: "online"
-    },
-    {
-      id: 2,
-      clientName: "Mike Chen",
-      lastMessage: "I'm interested in your landscaping services. What's your availability?",
-      timestamp: "1 hour ago",
-      unread: false,
-      avatar: null,
-      status: "offline"
-    },
-    {
-      id: 3,
-      clientName: "Emma Davis",
-      lastMessage: "The house cleaning was perfect! Will book again soon.",
-      timestamp: "Yesterday",
-      unread: false,
-      avatar: null,
-      status: "online"
-    }
+  // minimal mock while API loads
+  const fallbackConversations = [
+    { id: 'c-1', clientName: 'Sarah Johnson', lastMessage: 'Thanks for the cut!', timestamp: '2 min ago', unread: true, avatar: null, status: 'online' }
+  ];
+  const fallbackMessages = [
+    { id: 'm-1', sender: 'client', name: 'Sarah Johnson', message: 'Hi! Available Friday?', timestamp: '10:30 AM', delivered: true }
   ];
 
-  const currentMessages = [
-    {
-      id: 1,
-      sender: "client",
-      name: "Sarah Johnson",
-      message: "Hi! I loved my haircut last week. Do you have any openings this Friday?",
-      timestamp: "10:30 AM",
-      delivered: true
-    },
-    {
-      id: 2,
-      sender: "me",
-      name: "You",
-      message: "Hi Sarah! So glad you loved it! Let me check my schedule for Friday.",
-      timestamp: "10:32 AM",
-      delivered: true
-    },
-    {
-      id: 3,
-      sender: "me",
-      name: "You", 
-      message: "I have a 2 PM and 4 PM slot available on Friday. Which works better for you?",
-      timestamp: "10:33 AM",
-      delivered: true
-    },
-    {
-      id: 4,
-      sender: "client",
-      name: "Sarah Johnson",
-      message: "Thank you for the great haircut! Can we schedule another appointment?",
-      timestamp: "Just now",
-      delivered: false
-    }
-  ];
+  const [conversations, setConversations] = React.useState(fallbackConversations);
+  const [currentMessages, setCurrentMessages] = React.useState(fallbackMessages);
+
+  React.useEffect(() => {
+    let mounted = true;
+    fetch('/api/messages')
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(data => {
+        // API may return { messages: [...] } or an array of conversations
+        const convs = Array.isArray(data) ? data : (data?.conversations ?? data?.threads ?? []);
+        const mapped = convs.map((c: any, idx: number) => ({
+          id: c.id ?? `conv-${idx}`,
+          clientName: c.clientName ?? c.name ?? c.with ?? 'Unknown',
+          lastMessage: c.lastMessage ?? c.preview ?? '',
+          timestamp: c.updatedAt ? new Date(c.updatedAt).toLocaleString() : (c.timestamp ?? ''),
+          unread: Boolean(c.unreadCount),
+          avatar: c.avatar ?? null,
+          status: c.status ?? 'offline',
+        }));
+        if (mounted && mapped.length > 0) setConversations(mapped);
+
+        // If API includes a messages array for the active conversation, map that too
+        const msgs = data?.messages ?? data?.currentMessages ?? [];
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          const mappedMsgs = msgs.map((m: any, i: number) => ({
+            id: m.id ?? `msg-${i}`,
+            sender: m.sender === 'me' || m.from === 'me' ? 'me' : 'client',
+            name: m.name ?? m.senderName ?? '',
+            message: m.body ?? m.content ?? m.text ?? '',
+            timestamp: m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : (m.time ?? ''),
+            delivered: m.delivered ?? true,
+          }));
+          if (mounted) setCurrentMessages(mappedMsgs);
+        }
+      })
+      .catch(() => {
+        // keep fallback data on failure
+      });
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">

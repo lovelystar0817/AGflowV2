@@ -4,13 +4,14 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enum for business types
-export const businessTypeEnum = pgEnum("business_type", ["Hairstylist", "Barber", "Nail Technician"]);
+export const businessTypeEnum = pgEnum("business_type", ["Hairstylist", "Barber", "Nail Technician", "Massage Therapist"]);
 
 // Default services by business type - shared between profile setup and business settings
 export const DEFAULT_SERVICES_BY_TYPE = {
   Hairstylist: ["Women's Cut", "Blowout", "Color & Highlights", "Silk Press", "Deep Conditioning"],
   Barber: ["Men's Haircut", "Beard Trim", "Fade / Taper", "Line Up", "Hot Towel Shave"],
   "Nail Technician": ["Gel Manicure", "Acrylic Full Set", "Nail Art Design", "Dip Powder Nails", "Pedicure"],
+  "Massage Therapist": ["Swedish Massage", "Deep Tissue Massage", "Sports Massage", "Prenatal Massage", "Hot Stone Massage"],
 } as const;
 
 // Session table for authentication
@@ -29,7 +30,9 @@ export const stylists = pgTable("stylists", {
   businessName: text("business_name"),
   // Profile fields
   phone: text("phone"),
-  location: text("location"),
+  location: text("location"), // Legacy field - to be deprecated
+  city: text("city"),
+  state: text("state"),
   servicesOffered: json("services_offered").$type<string[]>(),
   bio: text("bio"),
   businessHours: json("business_hours").$type<{
@@ -48,6 +51,7 @@ export const stylists = pgTable("stylists", {
   themeId: integer("theme_id").default(1),
   portfolioPhotos: json("portfolio_photos").$type<string[]>().default(sql`'[]'::json`),
   appSlug: text("app_slug").unique(),
+  appQrCodeUrl: text("app_qr_code_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -170,7 +174,9 @@ const businessHoursSchema = z.record(z.object({
 // Profile update schema for existing stylists
 export const updateProfileSchema = z.object({
   phone: phoneValidationSchema,
-  location: z.string().min(1, "Location is required"),
+  location: z.string().optional(), // Legacy field - optional for backwards compatibility
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
   services: z.array(serviceFormSchema).min(1, "At least one service is required"),
   bio: z.string().min(10, "Bio must be at least 10 characters"),
   businessHours: businessHoursSchema,
@@ -765,6 +771,58 @@ export function replaceMessagePlaceholders(
     .replace(/\[EXPIRY_DATE\]/g, endDate)
     .replace(/\[BUSINESS_NAME\]/g, businessName);
 }
+
+// Messages table for chat functionality between stylists and clients
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: text("conversation_id").notNull(), // Unique identifier for conversation thread
+  senderId: uuid("sender_id").notNull(), // Can be stylist or client ID
+  senderType: text("sender_type").notNull(), // 'stylist' or 'client'
+  receiverId: uuid("receiver_id").notNull(), // Can be stylist or client ID
+  receiverType: text("receiver_type").notNull(), // 'stylist' or 'client'
+  content: text("content").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  conversationIndex: index("messages_conversation_id_idx").on(table.conversationId),
+  senderIndex: index("messages_sender_id_idx").on(table.senderId),
+  receiverIndex: index("messages_receiver_id_idx").on(table.receiverId),
+}));
+
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type Message = typeof messages.$inferSelect;
+
+// Jobs table for client job requests in Discover Jobs feature
+export const jobStatusEnum = pgEnum("job_status", ["open", "claimed", "completed"]);
+
+export const jobs = pgTable("jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: businessTypeEnum("category").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  status: jobStatusEnum("status").notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  statusIndex: index("jobs_status_idx").on(table.status),
+  categoryIndex: index("jobs_category_idx").on(table.category),
+  cityStateIndex: index("jobs_city_state_idx").on(table.city, table.state),
+}));
+
+export const insertJobSchema = createInsertSchema(jobs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertJob = z.infer<typeof insertJobSchema>;
+export type Job = typeof jobs.$inferSelect;
 
 // Legacy exports for compatibility with auth blueprint
 export const users = stylists;

@@ -168,6 +168,7 @@ export class NotificationJobService {
               // Update notification status to failed with error message
               await storage.updateNotificationStatus(
                 notification.id, 
+                { user: { id: notification.id } } as any, // not used in storage since claim filters by stylist
                 'failed', 
                 error instanceof Error ? error.message : 'Unknown error occurred'
               );
@@ -238,7 +239,7 @@ export class NotificationJobService {
 
     if (result.success) {
       // Update notification status to sent
-      await storage.updateNotificationStatus(notification.id, 'sent');
+  await storage.updateNotificationStatus(notification.id, { user: { id: 'unknown' } } as any, 'sent');
       console.log(`Successfully sent notification ${notification.id} to ${notification.clientEmail}`);
     } else {
       throw new Error(result.error || 'Failed to send email');

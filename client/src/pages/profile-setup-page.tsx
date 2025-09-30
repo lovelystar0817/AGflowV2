@@ -3,13 +3,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { updateProfileSchema, type UpdateProfile, type StylistService, type TimeRange, DEFAULT_SERVICES_BY_TYPE } from "@shared/schema";
+import { US_STATES, MAJOR_CITIES_BY_STATE } from "../../../shared/location-data";
 import { addDays, format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+// Using native HTML select elements instead of complex Select components
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -75,7 +76,9 @@ export default function ProfileSetupPage() {
     resolver: zodResolver(updateProfileSchema),
     defaultValues: {
       phone: "",
-      location: "",
+      location: "", // Legacy field
+      city: "",
+      state: "",
       services: [],
       bio: "",
       businessHours: {
@@ -106,7 +109,9 @@ export default function ProfileSetupPage() {
       // Reset form with existing user data
       form.reset({
         phone: user.phone || "",
-        location: user.location || "",
+        location: user.location || "", // Legacy field
+        city: user.city || "",
+        state: user.state || "",
         services: formServices,
         bio: user.bio || "",
         businessHours: user.businessHours || {
@@ -221,7 +226,7 @@ export default function ProfileSetupPage() {
           : "Your business profile has been updated successfully.",
       });
       
-      navigate("/");
+      navigate("/dashboard");
     },
     onError: (error: Error) => {
       toast({
@@ -309,7 +314,7 @@ export default function ProfileSetupPage() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 className="h-8 w-8 sm:h-10 sm:w-10 transition-enhanced hover-lift flex-shrink-0"
                 data-testid="button-back"
               >
@@ -355,22 +360,69 @@ export default function ProfileSetupPage() {
                   )}
                 />
 
+                {/* State Selection */}
                 <FormField
                   control={form.control}
-                  name="location"
+                  name="state"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Location *</FormLabel>
+                      <FormLabel>State *</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="City, State or ZIP code" 
-                          {...field} 
-                          data-testid="input-location"
-                        />
+                        <select 
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={field.value || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(value);
+                            // Clear city when state changes
+                            form.setValue("city", "");
+                          }}
+                          data-testid="select-state"
+                        >
+                          <option value="">Select your state</option>
+                          {US_STATES.map((state) => (
+                            <option key={state.value} value={state.value}>
+                              {state.label}
+                            </option>
+                          ))}
+                        </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                {/* City Selection */}
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => {
+                    const currentState = form.watch("state");
+                    return (
+                      <FormItem>
+                        <FormLabel>City *</FormLabel>
+                        <FormControl>
+                          <select 
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            disabled={!currentState}
+                            data-testid="select-city"
+                          >
+                            <option value="">
+                              {currentState ? "Select your city" : "Please select a state first"}
+                            </option>
+                            {currentState && MAJOR_CITIES_BY_STATE[currentState]?.map((city) => (
+                              <option key={city} value={city}>
+                                {city}
+                              </option>
+                            ))}
+                          </select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>
@@ -388,10 +440,11 @@ export default function ProfileSetupPage() {
                 <div>
                   <h4 className="text-sm font-medium mb-4">Services by Category</h4>
                   <Tabs value={activeServicesTab} onValueChange={setActiveServicesTab}>
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                       <TabsTrigger value="hairstylist">Hairstylist</TabsTrigger>
                       <TabsTrigger value="barber">Barber</TabsTrigger>
                       <TabsTrigger value="nail-tech">Nail Tech</TabsTrigger>
+                      <TabsTrigger value="massage-therapist">Massage Therapist</TabsTrigger>
                       <TabsTrigger value="other">Other</TabsTrigger>
                     </TabsList>
                     
@@ -482,6 +535,43 @@ export default function ProfileSetupPage() {
                             />
                             <label
                               htmlFor={`nail-tech-${service}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
+                            >
+                              {service}
+                            </label>
+                            {isPresetServiceSelected(service) && (
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">$</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={getPresetServicePrice(service)}
+                                  onChange={(e) => updatePresetServicePrice(service, e.target.value)}
+                                  className="w-24"
+                                  data-testid={`input-price-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    {/* Massage Therapist Services Tab */}
+                    <TabsContent value="massage-therapist" className="mt-4">
+                      <div className="space-y-4">
+                        {DEFAULT_SERVICES_BY_TYPE["Massage Therapist"].map((service) => (
+                          <div key={service} className="flex items-center space-x-4">
+                            <Checkbox
+                              id={`massage-therapist-${service}`}
+                              checked={isPresetServiceSelected(service)}
+                              onCheckedChange={(checked) => handlePresetServiceToggle(service, !!checked)}
+                              data-testid={`checkbox-service-${service.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                            />
+                            <label
+                              htmlFor={`massage-therapist-${service}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
                             >
                               {service}
@@ -667,23 +757,21 @@ export default function ProfileSetupPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Years of Experience</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))} 
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger data-testid="select-experience">
-                            <SelectValue placeholder="Select your experience level" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
+                      <FormControl>
+                        <select
+                          data-testid="select-experience"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          value={field.value?.toString() || ""}
+                        >
+                          <option value="" disabled>Select your experience level</option>
                           {EXPERIENCE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value.toString()}>
+                            <option key={option.value} value={option.value.toString()}>
                               {option.label}
-                            </SelectItem>
+                            </option>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </select>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -819,7 +907,7 @@ export default function ProfileSetupPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 data-testid="button-cancel"
               >
                 Cancel

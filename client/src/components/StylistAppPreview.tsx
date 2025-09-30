@@ -131,14 +131,26 @@ export function StylistAppPreview({
           <CardContent className="p-4">
             <h3 className={cn("font-semibold mb-4", theme.text)}>Services</h3>
             <div className="space-y-3">
-              {serviceItems.map((service) => (
-                <ServiceButton
-                  key={service.id}
-                  service={service}
-                  themeId={themeId}
-                  variant="outline"
-                />
-              ))}
+              {serviceItems.length > 0 ? (
+                serviceItems.map((service) => (
+                  <ServiceButton
+                    key={service.id}
+                    service={service}
+                    themeId={themeId}
+                    variant="outline"
+                  />
+                ))
+              ) : (
+                <div className="text-center py-6">
+                  <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                    <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className={cn("text-sm mb-2", theme.text)}>No Services Available</p>
+                  <p className={cn("text-xs opacity-75", theme.subText)}>
+                    Add services in your dashboard to display them here
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

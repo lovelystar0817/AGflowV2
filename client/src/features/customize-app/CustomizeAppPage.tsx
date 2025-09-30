@@ -1,17 +1,18 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { updateTemplateSchema, type UpdateTemplate } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings } from "lucide-react";
+import { ArrowLeft, Check, Upload, Palette, Smartphone, Settings, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { PortfolioGallery } from "@/components/PortfolioGallery";
 import { ThemeGrid } from "@/components/ThemePreview";
 import { APP_THEMES } from "@/lib/appThemes";
 import { AppQRCode } from "@/components/ui/AppQRCode";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Theme templates are now imported from ThemePreview component
 
@@ -20,6 +21,14 @@ export default function CustomizeAppPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // Check if user has any services
+  const { data: servicesResponse } = useQuery<{ items: any[] }>({
+    queryKey: ["/api/services"],
+    enabled: !!user,
+  });
+
+  const hasServices = (servicesResponse?.items?.length || 0) > 0;
 
   // Initialize local UI state
   const [portfolioPhotos, setPortfolioPhotos] = useState<string[]>(
@@ -38,6 +47,31 @@ export default function CustomizeAppPage() {
     }
   }, [user]);
 
+  // QR Code generation mutation
+  const generateQRMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id || !user?.appSlug) {
+        throw new Error("User ID or app slug not available");
+      }
+      const response = await apiRequest("POST", `/api/stylists/${user.id}/app-qr`, {});
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      // Re-fetch user data so AppQRCode component updates
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/stylists/${user?.id}/app-qr`] });
+    },
+    onError: (error: Error) => {
+      console.error("QR generation error:", error);
+      // Don't show error toast for QR generation failure since template was already saved
+      // Just log the error for debugging
+    },
+  });
+
   const updateTemplateMutation = useMutation({
     mutationFn: async (data: UpdateTemplate) => {
       const response = await apiRequest("PATCH", "/api/profile", data);
@@ -47,14 +81,35 @@ export default function CustomizeAppPage() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Template saved!",
-        description: "Your app theme and portfolio have been updated.",
+        description: "Your app theme and portfolio have been updated. Generating QR code...",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      setShowQRCode(true);
+      
+      // Generate QR code after template is saved
+      if (user?.appSlug) {
+        try {
+          await generateQRMutation.mutateAsync();
+          toast({
+            title: "QR Code generated!",
+            description: "Your app QR code has been created. Redirecting to QR codes...",
+          });
+        } catch (error) {
+          // Template was saved successfully, just QR generation failed
+          toast({
+            title: "Template saved successfully!",
+            description: "QR code generation will be available in the QR Code section.",
+          });
+        }
+      }
+      
+      // Redirect to dashboard with App QR tab active
+      setTimeout(() => {
+        setLocation("/?tab=qr-code&subtab=app");
+      }, 1500); // Slightly longer delay for QR generation
     },
     onError: (error: Error) => {
       toast({
@@ -108,7 +163,7 @@ export default function CustomizeAppPage() {
         <div className="mb-8">
           <Button
             variant="ghost"
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/dashboard")}
             className="mb-4"
             data-testid="button-back"
           >
@@ -127,7 +182,7 @@ export default function CustomizeAppPage() {
         </div>
 
         <div className="space-y-8">
-            {/* Business Settings Notice */}
+            {/* Business Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -135,17 +190,17 @@ export default function CustomizeAppPage() {
                   <span>Business Information</span>
                 </CardTitle>
                 <CardDescription>
-                  To update your business name, phone, bio, or location, go to Business Settings in the dashboard. These changes will automatically reflect in your app preview.
+                  To update your bio, go to Business Settings. Your bio changes will automatically reflect in your app preview.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() => setLocation("/dashboard/business-settings")}
+                  onClick={() => setLocation("/dashboard/business-settings?from=customize")}
                   className="w-full sm:w-auto"
                   data-testid="button-business-settings"
                 >
                   <Settings className="h-4 w-4 mr-2" />
-                  Go to Business Settings
+                  Business Settings
                 </Button>
               </CardContent>
             </Card>
@@ -194,6 +249,17 @@ export default function CustomizeAppPage() {
               </CardContent>
             </Card>
 
+            {/* Services Warning */}
+            {!hasServices && (
+              <Alert className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>No services added yet!</strong> Your app preview will show "No Services Available". 
+                  Add services in your <Button variant="link" className="p-0 h-auto text-blue-600 underline" onClick={() => setLocation("/dashboard")}>dashboard</Button> first for the best preview experience.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Save Button */}
             <div className="flex justify-end space-x-4">
               <Button
@@ -217,14 +283,19 @@ export default function CustomizeAppPage() {
               <Button
                 type="button"
                 onClick={handleSaveTemplate}
-                disabled={updateTemplateMutation.isPending}
+                disabled={updateTemplateMutation.isPending || generateQRMutation.isPending}
                 className="min-w-48"
                 data-testid="button-save"
               >
                 {updateTemplateMutation.isPending ? (
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    <span>Saving...</span>
+                    <span>Saving Template...</span>
+                  </div>
+                ) : generateQRMutation.isPending ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span>Generating QR...</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">

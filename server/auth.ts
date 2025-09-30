@@ -1,6 +1,4 @@
 import passport from "passport";
-console.log('SESSION_SECRET:', process.env.SESSION_SECRET);
-console.log('SESSION_SECRET:', process.env.SESSION_SECRET);
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express, Request, Response } from "express";
 import session from "express-session";
@@ -8,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage-instance";
 import { User as SelectUser, insertStylistSchema } from "@shared/schema";
+import csrf from "csrf";
 
 // Security helper to remove sensitive data from user responses
 function sanitizeUser(user: SelectUser) {
@@ -37,7 +36,31 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
-  const sessionSettings: session.SessionOptions = {
+  // Initialize CSRF protection for auth routes
+  const tokens = new csrf();
+
+  // Helper function to validate CSRF tokens in auth routes
+  const validateCSRF = (req: Request & { session?: any }, res: Response): boolean => {
+    const token = req.headers['x-csrf-token'] || req.body._csrf;
+    
+    if (!token) {
+      res.status(403).json({ error: 'CSRF token missing' });
+      return false;
+    }
+
+    if (!req.session?.csrfSecret) {
+      res.status(403).json({ error: 'Invalid CSRF token' });
+      return false;
+    }
+
+    if (!tokens.verify(req.session.csrfSecret, token as string)) {
+      res.status(403).json({ error: 'Invalid CSRF token' });
+      return false;
+    }
+
+    return true;
+  };
+    const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
@@ -73,6 +96,9 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      // Validate CSRF token first
+      if (!validateCSRF(req, res)) return;
+
       // Validate the request body
       const validatedData = insertStylistSchema.parse(req.body);
       
@@ -87,6 +113,9 @@ export function setupAuth(app: Express) {
         lastName: validatedData.lastName,
         businessName: validatedData.businessName,
         password: await hashPassword(validatedData.password),
+        portfolioPhotos: [],
+        themeId: 1,
+        appSlug: `${validatedData.firstName.toLowerCase()}-${validatedData.lastName.toLowerCase()}`,
       });
 
       // Remove passwordHash from response for security
@@ -106,6 +135,9 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
+    // Validate CSRF token first
+    if (!validateCSRF(req, res)) return;
+
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(400).json({ error: info?.message || "Invalid credentials" });
@@ -118,25 +150,17 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res, next) => {
+    // Validate CSRF token first
+    if (!validateCSRF(req, res)) return;
+
     req.logout((err) => {
       if (err) return next(err);
       res.sendStatus(200);
     });
   });
 
-  app.get("/api/user", async (req, res) => {
+  app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    
-    // Fetch fresh user data from database to include latest customization fields
-    try {
-      const freshUser = await storage.getStylist(req.user!.id);
-      if (!freshUser) {
-        return res.sendStatus(404);
-      }
-      res.json(sanitizeUser(freshUser));
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-      res.sendStatus(500);
-    }
+    res.json(sanitizeUser(req.user!));
   });
 }

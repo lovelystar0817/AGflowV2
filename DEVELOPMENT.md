@@ -20,7 +20,7 @@ npx vite dev
 ```
 
 ## Important URLs:
-- **Frontend**: http://localhost:5173 (Your React app)
+- **Frontend**: http://localhost:5173 or http://localhost:5174 (Your React app)
 - **Backend API**: http://localhost:3000 (Express server)
 
 ## Key Points:

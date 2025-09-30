@@ -2,12 +2,18 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1757953353314,
-      "tag": "0000_daffy_epoch",
-      "breakpoints": true
-    }
+  { "idx": 0, "version": "7", "when": 1759179625873, "tag": "0001_lively_major_mapleleaf", "breakpoints": true },
+  { "idx": 1, "version": "7", "when": 1759179626873, "tag": "0001_performance_indexes", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1759181198244, "tag": "0002_dazzling_major_mapleleaf", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1759181199344, "tag": "0002_performance_indexes_manual", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1759181200444, "tag": "0003_ai_executions_table", "breakpoints": true },
+    { "idx": 6, "version": "7", "when": 1759181201544, "tag": "0004_add_action_log", "breakpoints": true },
+    { "idx": 7, "version": "7", "when": 1759181202644, "tag": "0005_add_client_visits", "breakpoints": true },
+    { "idx": 8, "version": "7", "when": 1759181203744, "tag": "0006_add_promotion_rules", "breakpoints": true },
+    { "idx": 9, "version": "7", "when": 1759181204844, "tag": "0007_add_app_slug", "breakpoints": true },
+    { "idx": 10, "version": "7", "when": 1759181205944, "tag": "0008_add_app_qr_code_url", "breakpoints": true },
+    { "idx": 11, "version": "7", "when": 1759181207044, "tag": "0009_add_massage_therapist_business_type", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1759181208144, "tag": "0010_add_city_state_columns", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1759181209244, "tag": "0011_add_jobs_table", "breakpoints": true }
   ]
 }

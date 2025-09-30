@@ -20,12 +20,17 @@ import MessagesPage from "@/pages/messages-page";
 import DiscoverJobsPage from "@/pages/discover-jobs-page";
 import CustomizeAppPage from "@/features/customize-app/CustomizeAppPage";
 import AppPreviewPage from "@/pages/app-preview-page";
+import PublicAppPage from "@/pages/public-app-page";
+import LoginPage from "@/pages/login";
+import SignUpPage from "@/pages/signup";
+import LandingPage from "@/pages/landing-page";
 import { FEATURES } from "@/config/features";
 
 function Router() {
   return (
     <Switch>
-      <ProtectedRoute path="/" component={DashboardPage} />
+      <Route path="/" component={LandingPage} />
+      <ProtectedRoute path="/dashboard" component={DashboardPage} />
       <ProtectedRoute path="/profile-setup" component={ProfileSetupPage} />
       <ProtectedRoute path="/dashboard/calendar/:date" component={DailyAvailabilityPage} />
       <ProtectedRoute path="/dashboard/today-appointments" component={TodayAppointmentsPage} />
@@ -42,6 +47,9 @@ function Router() {
         <ProtectedRoute path="/app/preview" component={AppPreviewPage} />
       )}
       <Route path="/auth" component={AuthPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignUpPage} />
+      <Route path="/app/:slug" component={PublicAppPage} />
       <Route path="/book/:stylistId" component={PublicBookingPage} />
       <Route component={NotFound} />
     </Switch>

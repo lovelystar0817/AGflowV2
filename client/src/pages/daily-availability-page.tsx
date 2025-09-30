@@ -90,7 +90,7 @@ export default function DailyAvailabilityPage() {
         description: "Your availability has been saved successfully.",
       });
       // Automatically navigate back to dashboard
-      setLocation('/');
+      setLocation('/dashboard');
     },
     onError: (error) => {
       console.error('Error updating availability:', error);
@@ -302,7 +302,7 @@ export default function DailyAvailabilityPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setLocation('/')}
+          onClick={() => setLocation('/dashboard')}
           data-testid="button-back"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
