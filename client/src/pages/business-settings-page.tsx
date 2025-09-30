@@ -68,6 +68,10 @@ export default function BusinessSettingsPage() {
   const [showServiceReplaceDialog, setShowServiceReplaceDialog] = useState(false);
   const [newBusinessType, setNewBusinessType] = useState<string>("");
   const [linkCopied, setLinkCopied] = useState(false);
+  
+  // Check if we came from customize page
+  const urlParams = new URLSearchParams(window.location.search);
+  const fromCustomize = urlParams.get('from') === 'customize';
 
   // Fetch user data to populate form
   const { data: user, isLoading: userLoading } = useQuery({
@@ -152,6 +156,13 @@ export default function BusinessSettingsPage() {
         title: "Settings updated",
         description: "Your business settings have been saved successfully.",
       });
+      
+      // Route back to dashboard customize tab after saving if came from customize
+      if (fromCustomize) {
+        setTimeout(() => {
+          setLocation("/dashboard?tab=qr-code&subtab=app");
+        }, 1500);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -243,7 +254,7 @@ export default function BusinessSettingsPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setLocation("/dashboard")}
+              onClick={() => setLocation(fromCustomize ? "/dashboard?tab=qr-code&subtab=app" : "/dashboard")}
               data-testid="button-back"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -251,7 +262,10 @@ export default function BusinessSettingsPage() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Business Settings</h1>
               <p className="text-muted-foreground">
-                Manage your business information and preferences
+                {fromCustomize 
+                  ? "Update your business bio and information" 
+                  : "Manage your business information and preferences"
+                }
               </p>
             </div>
           </div>
