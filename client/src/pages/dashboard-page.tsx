@@ -261,12 +261,25 @@ export default function DashboardPage() {
     queryFn: async () => {
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
-      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      // Only query for today and future dates to avoid creating historical availability records
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysToQuery = allDays.filter(date => date >= today);
       
       const availability: Record<string, { total: number; available: number }> = {};
       
-      // Fetch slot counts for each day in the month
-      const promises = days.map(async (date) => {
+      // Set past dates to have 0 availability
+      allDays.forEach(date => {
+        if (date < today) {
+          const dateStr = format(date, "yyyy-MM-dd");
+          availability[dateStr] = { total: 0, available: 0 };
+        }
+      });
+      
+      // Fetch slot counts only for today and future dates
+      const promises = daysToQuery.map(async (date) => {
         const dateStr = format(date, "yyyy-MM-dd");
         try {
           const response = await fetch(`/api/slots-count/${dateStr}`, {
@@ -298,12 +311,25 @@ export default function DashboardPage() {
     queryFn: async () => {
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
-      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      // Only query for today and future dates to avoid creating historical availability records
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysToQuery = allDays.filter(date => date >= today);
       
       const availabilityStatus: Record<string, { isOpen: boolean }> = {};
       
-      // Fetch availability status for each day in the month
-      const promises = days.map(async (date) => {
+      // Set past dates as closed
+      allDays.forEach(date => {
+        if (date < today) {
+          const dateStr = format(date, "yyyy-MM-dd");
+          availabilityStatus[dateStr] = { isOpen: false };
+        }
+      });
+      
+      // Fetch availability status only for today and future dates
+      const promises = daysToQuery.map(async (date) => {
         const dateStr = format(date, "yyyy-MM-dd");
         try {
           const response = await fetch(`/api/availability/${dateStr}`, {

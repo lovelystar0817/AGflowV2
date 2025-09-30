@@ -162,6 +162,32 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  private getBusinessHoursRange(stylist: Stylist | undefined, date: string) {
+    if (!stylist?.businessHours) {
+      return null;
+    }
+
+    const targetDate = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(targetDate.getTime())) {
+      return null;
+    }
+
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+    const dayKey = dayNames[targetDate.getDay()];
+    const dayHours = stylist.businessHours[dayKey];
+
+    if (!dayHours || dayHours.isClosed) {
+      return null;
+    }
+
+    const { open, close } = dayHours;
+    if (!open || !close) {
+      return null;
+    }
+
+    return { start: open, end: close };
+  }
+
   async getStylist(id: string): Promise<Stylist | undefined> {
     const [stylist] = await db.select().from(stylists).where(eq(stylists.id, id));
     return stylist || undefined;
@@ -225,9 +251,7 @@ export class DatabaseStorage implements IStorage {
     if (typeof profile.instagramHandle !== 'undefined') updatePayload.instagramHandle = profile.instagramHandle;
     if (typeof profile.bookingLink !== 'undefined') updatePayload.bookingLink = profile.bookingLink;
     
-    // Theme and portfolio fields
-    if (typeof profile.themeId !== 'undefined') updatePayload.themeId = profile.themeId;
-    if (typeof profile.portfolioPhotos !== 'undefined') updatePayload.portfolioPhotos = profile.portfolioPhotos;
+  // Theme and portfolio fields are managed via template settings, not profile update
     
     // Populate legacy field for backward compatibility with isProfileComplete
     if (typeof profile.services !== 'undefined') updatePayload.servicesOffered = serviceNames;
@@ -653,7 +677,15 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Service ${appointment.serviceId} not found or does not belong to stylist ${appointment.stylistId}`);
     }
 
-    const [newAppointment] = await db.insert(appointments).values(appointment).returning();
+    // Ensure server-computed fields are set if missing
+    const computedEndTime = appointment.endTime ?? getSlotEndTime(appointment.startTime);
+    const computedTotalPrice = appointment.totalPrice ?? service.price.toString();
+
+    const [newAppointment] = await db.insert(appointments).values({
+      ...appointment,
+      endTime: computedEndTime,
+      totalPrice: computedTotalPrice,
+    }).returning();
     return newAppointment;
   }
 
@@ -700,25 +732,36 @@ export class DatabaseStorage implements IStorage {
 
   // Slot management methods
   async getAvailableSlots(stylistId: string, date: string): Promise<string[]> {
-    // Get stylist availability for the date
     const availability = await this.getStylistAvailability(stylistId, date);
-    
-    if (!availability || !availability.isOpen || !availability.timeRanges || availability.timeRanges.length === 0) {
+
+    if (availability && !availability.isOpen) {
       return [];
     }
-    
+
+    let timeRanges = availability?.timeRanges ?? [];
+
+    if (!timeRanges || timeRanges.length === 0) {
+      const stylist = await this.getStylist(stylistId);
+      const fallbackRange = this.getBusinessHoursRange(stylist, date);
+      if (!fallbackRange) {
+        return [];
+      }
+      timeRanges = [fallbackRange];
+    }
+
     // Generate all possible 30-minute slots from time ranges
-    const allSlots = generate30MinuteSlots(availability.timeRanges);
-    
+    const allSlots = generate30MinuteSlots(timeRanges);
+
     // Get booked slots for this date
     const bookedAppointments = await this.getAppointmentsByStylist(stylistId, date);
+    const blockingStatuses = new Set(['scheduled', 'confirmed', 'in_chair']);
     const bookedSlots = bookedAppointments
-      .filter(app => app.status === 'confirmed')
+      .filter(app => blockingStatuses.has(app.status))
       .map(app => app.startTime);
-    
+
     // Filter out booked slots
     let availableSlots = filterAvailableSlots(allSlots, bookedSlots);
-    
+
     // Only filter past times if date is today (use local time)
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format in local time
     if (date === today) {
@@ -730,47 +773,56 @@ export class DatabaseStorage implements IStorage {
         return slotDateTime > now;
       });
     }
-    
+
     return availableSlots;
   }
 
   async getSlotsCount(stylistId: string, date: string): Promise<{ total: number; available: number }> {
-    // Get stylist availability for the date
     const availability = await this.getStylistAvailability(stylistId, date);
-    
-    if (!availability || !availability.isOpen || !availability.timeRanges || availability.timeRanges.length === 0) {
+
+    if (availability && !availability.isOpen) {
       return { total: 0, available: 0 };
     }
-    
+
+    let timeRanges = availability?.timeRanges ?? [];
+    if (!timeRanges || timeRanges.length === 0) {
+      const stylist = await this.getStylist(stylistId);
+      const fallbackRange = this.getBusinessHoursRange(stylist, date);
+      if (!fallbackRange) {
+        return { total: 0, available: 0 };
+      }
+      timeRanges = [fallbackRange];
+    }
+
     // Generate all possible 30-minute slots from time ranges
-    const allSlots = generate30MinuteSlots(availability.timeRanges);
+    const allSlots = generate30MinuteSlots(timeRanges);
     const totalSlots = allSlots.length; // Always all slots, never filter past times from total
-    
+
     // Get booked slots for this date
     const bookedAppointments = await this.getAppointmentsByStylist(stylistId, date);
+    const blockingStatuses = new Set(['scheduled', 'confirmed', 'in_chair']);
     const bookedSlots = bookedAppointments
-      .filter(app => app.status === 'confirmed')
+      .filter(app => blockingStatuses.has(app.status))
       .map(app => app.startTime);
-    
+
     // Filter out booked slots
     let availableSlots = filterAvailableSlots(allSlots, bookedSlots);
-    
+
     // Only filter past times from available count if date is today (use local time)
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format in local time
     if (date === today) {
       const now = new Date();
+      // Only filter slots that started more than 15 minutes ago to allow some flexibility
+      const cutoffTime = new Date(now.getTime() - (15 * 60 * 1000));
       availableSlots = availableSlots.filter(slot => {
         const [hours, minutes] = slot.split(':').map(Number);
         const slotDateTime = new Date();
         slotDateTime.setHours(hours, minutes, 0, 0);
-        return slotDateTime > now;
+        return slotDateTime > cutoffTime;
       });
     }
-    
-    return {
-      total: totalSlots,
-      available: availableSlots.length
-    };
+
+    return { total: totalSlots, available: availableSlots.length };
   }
 
   // Coupon management methods

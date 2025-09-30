@@ -907,7 +907,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { id } = req.params;
       const statusSchema = z.object({
-        status: z.enum(["scheduled", "completed", "cancelled", "no_show"]),
+        status: z.enum(["scheduled", "confirmed", "in_chair", "completed", "cancelled", "no_show"]),
+        note: z.string().max(500).optional(),
       });
       
       const validation = statusSchema.safeParse(req.body);
@@ -926,10 +927,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const updatedAppointment = await storage.updateAppointment(id, req.user.id, { status: validation.data.status });
+      const currentStatus = appointment.status as string;
+      const nextStatus = validation.data.status;
+
+      if (currentStatus === nextStatus) {
+        return res.json(appointment);
+      }
+
+      const allowedTransitions: Record<string, string[]> = {
+        scheduled: ["confirmed", "cancelled", "no_show"],
+        confirmed: ["in_chair", "cancelled", "no_show"],
+        in_chair: ["completed", "cancelled"],
+        completed: [],
+        cancelled: [],
+        no_show: [],
+      };
+
+      if (!allowedTransitions[currentStatus]?.includes(nextStatus)) {
+        return res.status(409).json({ error: `Cannot move appointment from ${currentStatus} to ${nextStatus}` });
+      }
+
+      const updatePayload: Record<string, unknown> = { status: nextStatus };
+
+      if (nextStatus === "cancelled" && validation.data.note) {
+        const existingNotes = appointment.notes ? `${appointment.notes}\n` : "";
+        updatePayload.notes = `${existingNotes}Cancelled: ${validation.data.note}`;
+      }
+
+      const updatedAppointment = await storage.updateAppointment(id, req.user.id, updatePayload);
       
       // If appointment is marked as completed, create a client visit record
-      if (validation.data.status === "completed") {
+      if (nextStatus === "completed") {
         await storage.createClientVisit({
           stylistId: req.user.id,
           clientId: appointment.clientId,
@@ -942,6 +970,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedAppointment);
     } catch (error) {
       console.error("Error updating appointment status:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/appointments/:id/reschedule", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { id } = req.params;
+      const rescheduleSchema = z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format. Use YYYY-MM-DD"),
+        startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format. Use HH:MM"),
+        notes: z.string().optional(),
+      });
+
+      const validation = rescheduleSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
+      }
+
+      const appointment = await storage.getAppointment(id, req.user.id);
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      if (appointment.stylistId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (["in_chair", "completed", "cancelled", "no_show"].includes(appointment.status)) {
+        return res.status(409).json({ error: "Only scheduled or confirmed appointments can be rescheduled" });
+      }
+
+      const { date, startTime, notes } = validation.data;
+      const isSameSlot = appointment.date === date && appointment.startTime === startTime;
+
+      if (!isSameSlot) {
+        const availableSlots = await storage.getAvailableSlots(req.user.id, date);
+        if (!availableSlots.includes(startTime)) {
+          return res.status(409).json({ error: "Time slot is no longer available" });
+        }
+      }
+
+      const updatedAppointment = await storage.updateAppointment(id, req.user.id, {
+        date,
+        startTime,
+        endTime: getSlotEndTime(startTime),
+        notes: typeof notes === "string" ? notes : appointment.notes ?? undefined,
+        status: "scheduled",
+      });
+
+      res.json(updatedAppointment);
+    } catch (error) {
+      console.error("Error rescheduling appointment:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -961,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid input", details: validation.error.errors });
       }
       
-      const { date, startTime, clientId, serviceId, notes } = validation.data;
+      const { date, startTime, clientId, serviceId, notes, automationOptOut } = validation.data;
       
       // Validate date format
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -1000,8 +1084,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         date,
         startTime,
         endTime: getSlotEndTime(startTime), // Enforce 1-hour duration
-        status: "confirmed" as const, // Force confirmed status
+        status: "scheduled" as const,
         notes: notes || undefined,
+        automationOptOut: automationOptOut ?? false,
         totalPrice: service.price.toString(), // Use service price, not client input
       };
       

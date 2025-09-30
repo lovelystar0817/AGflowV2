@@ -1,3 +1,4 @@
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +95,7 @@ export function MessagesPage() {
               <div
                 key={conversation.id}
                 className={`p-3 rounded-lg cursor-pointer transition-colors mb-2 ${
-                  conversation.id === 1 
+                  conversation.id === 'c-1' 
                     ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' 
                     : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}

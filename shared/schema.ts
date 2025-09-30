@@ -299,8 +299,9 @@ export const appointments = pgTable("appointments", {
   date: date("date").notNull(),
   startTime: text("start_time").notNull(), // Format: "HH:MM" (24-hour)
   endTime: text("end_time").notNull(), // Format: "HH:MM" (24-hour)
-  status: text("status").notNull().default("scheduled"), // "scheduled", "completed", "cancelled", "no_show"
+  status: text("status").notNull().default("scheduled"), // "scheduled", "confirmed", "in_chair", "completed", "cancelled", "no_show"
   notes: text("notes"),
+  automationOptOut: boolean("automation_opt_out").notNull().default(false),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -317,7 +318,7 @@ export const appointmentSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
   startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
   endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
-  status: z.enum(["scheduled", "completed", "cancelled", "no_show"]).default("scheduled"),
+  status: z.enum(["scheduled", "confirmed", "in_chair", "completed", "cancelled", "no_show"]).default("scheduled"),
   notes: z.string().optional(),
   totalPrice: z.string().refine((val) => {
     const num = parseFloat(val);
@@ -342,6 +343,11 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  notes: z.string().optional(),
+  automationOptOut: z.boolean().optional(),
+  endTime: z.string().optional(), // Make endTime optional - server will calculate
+  totalPrice: z.string().optional(), // Make totalPrice optional - server will calculate
 });
 
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
