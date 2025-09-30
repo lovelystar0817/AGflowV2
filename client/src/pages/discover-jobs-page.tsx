@@ -37,8 +37,8 @@ import {
 } from "@/components/ui/tabs";
 
 export function DiscoverJobsPage() {
-  // Mock data for demonstration
-  const jobListings = [
+  // Start with local mock data so UI remains populated while API loads
+  const initialMock = [
     {
       id: 1,
       title: "Wedding Hair & Makeup",
@@ -55,55 +55,40 @@ export function DiscoverJobsPage() {
       tags: ["Wedding", "Updo", "Makeup"],
       applicationCount: 5
     },
-    {
-      id: 2,
-      title: "Weekly House Cleaning",
-      client: "Mike Johnson",
-      category: "House Cleaning",
-      location: "Brooklyn Heights",
-      budget: "$80-120",
-      postedTime: "5 hours ago",
-      deadline: "Next Monday",
-      description: "Need reliable weekly house cleaning service for a 2-bedroom apartment. Pet-friendly cleaner preferred.",
-      urgency: "medium",
-      clientRating: 4.9,
-      clientReviews: 23,
-      tags: ["Weekly", "Pet-friendly", "Apartment"],
-      applicationCount: 8
-    },
-    {
-      id: 3,
-      title: "Garden Landscaping Project",
-      client: "Sarah Davis",
-      category: "Landscaping",
-      location: "Queens, NY",
-      budget: "$800-1200",
-      postedTime: "1 day ago",
-      deadline: "End of month",
-      description: "Complete backyard makeover including lawn renovation, flower beds, and small tree planting.",
-      urgency: "low",
-      clientRating: 4.6,
-      clientReviews: 8,
-      tags: ["Backyard", "Lawn", "Planting"],
-      applicationCount: 12
-    },
-    {
-      id: 4,
-      title: "Corporate Event Hair Styling",
-      client: "EventCorp Ltd",
-      category: "Hairstylist",
-      location: "Manhattan",
-      budget: "$200-300/person",
-      postedTime: "3 hours ago",
-      deadline: "Next Friday",
-      description: "Need 3 hairstylists for corporate photoshoot. Professional styles for 15 executives.",
-      urgency: "high",
-      clientRating: 5.0,
-      clientReviews: 45,
-      tags: ["Corporate", "Photoshoot", "Professional"],
-      applicationCount: 3
-    }
   ];
+
+  const [jobListings, setJobListings] = React.useState(initialMock);
+
+  React.useEffect(() => {
+    let mounted = true;
+    fetch('/api/jobs')
+      .then((res) => res.ok ? res.json() : Promise.reject(res))
+      .then((data) => {
+        // Data could be an array of jobs or an object with { jobs: [...] }
+        const items = Array.isArray(data) ? data : (data?.jobs ?? []);
+        const mapped = items.map((job: any, idx: number) => ({
+          id: job.id ?? `api-job-${idx}`,
+          title: job.title ?? job.name ?? 'Untitled job',
+          client: job.clientName ?? job.client ?? job.clientId ?? 'Client',
+          category: job.category ?? job.business_type ?? 'General',
+          location: job.location ?? (job.city && job.state ? `${job.city}, ${job.state}` : (job.city ?? '')), 
+          budget: job.budget ?? '',
+          postedTime: job.postedTime ?? (job.createdAt ? new Date(job.createdAt).toLocaleString() : ''),
+          deadline: job.deadline ?? '',
+          description: job.description ?? job.details ?? '',
+          urgency: job.urgency ?? (job.priority ?? 'low'),
+          clientRating: job.clientRating ?? 4.5,
+          clientReviews: job.clientReviews ?? 0,
+          tags: job.tags ?? [],
+          applicationCount: job.applicationCount ?? job.applicationsCount ?? 0,
+        }));
+        if (mounted && mapped.length > 0) setJobListings(mapped);
+      })
+      .catch(() => {
+        // keep mock if fetch fails
+      });
+    return () => { mounted = false; };
+  }, []);
 
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {

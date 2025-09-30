@@ -1,0 +1,13 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+⚠️  Redis disabled in development mode. Job queuing will be skipped.
+   To enable Redis, set ENABLE_REDIS=true or start in production/staging mode.
+{"level":30,"time":1759179186212,"pid":143048,"hostname":"codespaces-451ceb","port":3000,"msg":"Server listening"}
+NotificationJobService initialized
+Starting notification job service - processing notifications every hour
+⚠️ Redis queue not available, skipping notification job enqueue
+{"level":30,"time":1759179186221,"pid":143048,"hostname":"codespaces-451ceb","msg":"Notification job service started - processing notifications every hour"}
+{"level":30,"time":1759179186577,"pid":143048,"hostname":"codespaces-451ceb","requestId":"ce93317c-76a1-49b7-a8a5-4effcab16226","method":"GET","path":"/api/service-providers/search","msg":"Request received"}
+{"level":30,"time":1759179186583,"pid":143048,"hostname":"codespaces-451ceb","requestId":"ce93317c-76a1-49b7-a8a5-4effcab16226","method":"GET","path":"/api/service-providers/search","statusCode":400,"durationMs":6,"responseBody":"{\"error\":\"Missing required query parameters: type, city, and state are required\"}","msg":"Request completed"}

@@ -1383,6 +1383,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Additional API routes can be added here
   // prefix all routes with /api
 
+  // Jobs management routes
+  app.get("/api/jobs", async (req, res) => {
+    try {
+      const { status, category, city, state } = req.query;
+
+      // Validate status parameter
+      if (!status || typeof status !== "string") {
+        return res.status(400).json({ error: "Status parameter is required" });
+      }
+
+      if (!["open", "claimed", "completed"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be 'open', 'claimed', or 'completed'" });
+      }
+
+      // Get jobs with filters
+      const jobs = await storage.getJobsByStatus(
+        status,
+        category as string | undefined,
+        city as string | undefined,
+        state as string | undefined
+      );
+
+      // If no jobs found and status is 'open', seed some fake jobs for testing
+      if (jobs.length === 0 && status === "open") {
+        const fakeJobs = [
+          {
+            id: "fake-job-1",
+            clientId: "fake-client-1",
+            title: "Haircut and Style",
+            description: "Looking for a professional haircut and styling service. I have thick, wavy hair that needs taming.",
+            category: "Hairstylist",
+            city: "Stamford",
+            state: "CT",
+            status: "open",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "fake-job-2",
+            clientId: "fake-client-2",
+            title: "Beard Trim and Shape",
+            description: "Need a clean beard trim and shaping. I want to maintain my current style but make it neat.",
+            category: "Barber",
+            city: "New Haven",
+            state: "CT",
+            status: "open",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "fake-job-3",
+            clientId: "fake-client-3",
+            title: "Gel Manicure",
+            description: "Professional gel manicure service needed. I prefer a natural look with clear or light pink polish.",
+            category: "Nail Technician",
+            city: "Hartford",
+            state: "CT",
+            status: "open",
+            createdAt: new Date().toISOString(),
+          }
+        ];
+
+        // Filter fake jobs by category if specified
+        const filteredFakeJobs = category
+          ? fakeJobs.filter(job => job.category.toLowerCase() === (category as string).toLowerCase())
+          : fakeJobs;
+
+        return res.json(filteredFakeJobs);
+      }
+
+      res.json(jobs);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/jobs", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { title, description, category, city, state } = req.body;
+
+      // Validate required fields
+      if (!title || !description || !category || !city || !state) {
+        return res.status(400).json({
+          error: "Missing required fields: title, description, category, city, and state are required"
+        });
+      }
+
+      // Validate category
+      const validCategories = ["Hairstylist", "Barber", "Nail Technician", "Massage Therapist"];
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          error: `Invalid category. Must be one of: ${validCategories.join(", ")}`
+        });
+      }
+
+      // Create job
+      const jobData = {
+        clientId: req.user.id, // Client posting the job is the authenticated user
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        city: city.trim(),
+        state: state.trim(),
+        status: "open",
+        createdAt: new Date(),
+      };
+
+      const job = await storage.createJob(jobData);
+      res.status(201).json(job);
+    } catch (error) {
+      console.error("Error creating job:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Public booking API routes (no authentication required)
   app.get("/api/public/stylist/:id", async (req, res) => {
     try {
@@ -1656,6 +1774,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generic fallback error
       res.status(500).json({ error: "Unable to complete booking. Please try again or contact support." });
+    }
+  });
+
+  // GET /api/service-providers/search - Search for service providers by business type and location
+  app.get("/api/service-providers/search", async (req, res) => {
+    try {
+      const { type, city, state } = req.query;
+
+      // Validate required query parameters
+      if (!type || !city || !state) {
+        return res.status(400).json({ 
+          error: "Missing required query parameters: type, city, and state are required" 
+        });
+      }
+
+      // For now, return mock data (2-3 seeded objects)
+      // TODO: Replace with real database queries when ClientHub integration is ready
+      const mockProviders = [
+        {
+          id: "mock-provider-1",
+          businessName: "Elegant Styles Salon",
+          businessType: type as string,
+          bio: "Professional hairstylist with 10+ years of experience specializing in modern cuts and color treatments.",
+          city: city as string,
+          state: state as string,
+          services: ["Women's Cut & Style", "Hair Coloring", "Balayage", "Keratin Treatment"],
+          portfolio: ["https://example.com/portfolio1.jpg", "https://example.com/portfolio2.jpg"]
+        },
+        {
+          id: "mock-provider-2", 
+          businessName: "Urban Cuts Barbershop",
+          businessType: type as string,
+          bio: "Traditional barber offering classic cuts, hot towel shaves, and modern styling for men.",
+          city: city as string,
+          state: state as string,
+          services: ["Men's Haircut", "Beard Trim", "Hot Towel Shave", "Line Up"],
+          portfolio: ["https://example.com/portfolio3.jpg", "https://example.com/portfolio4.jpg"]
+        },
+        {
+          id: "mock-provider-3",
+          businessName: "Nail Art Studio",
+          businessType: type as string,
+          bio: "Creative nail technician specializing in gel manicures, acrylic sets, and custom nail art designs.",
+          city: city as string,
+          state: state as string,
+          services: ["Gel Manicure", "Acrylic Full Set", "Nail Art Design", "Pedicure"],
+          portfolio: ["https://example.com/portfolio5.jpg", "https://example.com/portfolio6.jpg"]
+        }
+      ];
+
+      // Filter mock providers by business type (all will match since we set the type above)
+      const filteredProviders = mockProviders.filter(provider => 
+        provider.businessType.toLowerCase() === (type as string).toLowerCase()
+      );
+
+      res.json({
+        providers: filteredProviders,
+        total: filteredProviders.length,
+        query: { type, city, state }
+      });
+    } catch (error) {
+      console.error("Error searching service providers:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Messages API endpoints
+  app.get("/api/messages/:conversationId", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { conversationId } = req.params;
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Conversation ID is required" });
+      }
+
+      // Get messages for this conversation
+      const messages = await storage.getMessagesByConversation(conversationId, req.user.id);
+
+      res.json({ messages });
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/messages", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { receiverId, content } = req.body;
+
+      if (!receiverId || !content) {
+        return res.status(400).json({ error: "Receiver ID and content are required" });
+      }
+
+      if (!content.trim()) {
+        return res.status(400).json({ error: "Message content cannot be empty" });
+      }
+
+      // Generate conversation ID (sorted combination of sender and receiver IDs)
+      const conversationId = [req.user.id, receiverId].sort().join('-');
+
+      // Create the message
+      const message = await storage.createMessage({
+        conversationId,
+        senderId: req.user.id,
+        senderType: 'stylist',
+        receiverId,
+        receiverType: 'client', // For now, assume stylist to client messaging
+        content: content.trim(),
+        isRead: false
+      });
+
+      res.status(201).json({ message });
+    } catch (error) {
+      console.error("Error creating message:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 

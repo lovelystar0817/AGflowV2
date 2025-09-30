@@ -160,3 +160,17 @@ export const couponDeliveries = pgTable("coupon_deliveries", {
 			name: "coupon_deliveries_coupon_id_coupons_id_fk"
 		}),
 ]);
+
+export const messages = pgTable("messages", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	conversationId: text("conversation_id").notNull(),
+	senderId: uuid("sender_id").notNull(),
+	senderType: text("sender_type").notNull(),
+	receiverId: uuid("receiver_id").notNull(),
+	receiverType: text("receiver_type").notNull(),
+	content: text("content").notNull(),
+	isRead: boolean("is_read").default(false).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+]);
+

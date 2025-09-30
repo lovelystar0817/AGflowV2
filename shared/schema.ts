@@ -772,6 +772,58 @@ export function replaceMessagePlaceholders(
     .replace(/\[BUSINESS_NAME\]/g, businessName);
 }
 
+// Messages table for chat functionality between stylists and clients
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: text("conversation_id").notNull(), // Unique identifier for conversation thread
+  senderId: uuid("sender_id").notNull(), // Can be stylist or client ID
+  senderType: text("sender_type").notNull(), // 'stylist' or 'client'
+  receiverId: uuid("receiver_id").notNull(), // Can be stylist or client ID
+  receiverType: text("receiver_type").notNull(), // 'stylist' or 'client'
+  content: text("content").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  conversationIndex: index("messages_conversation_id_idx").on(table.conversationId),
+  senderIndex: index("messages_sender_id_idx").on(table.senderId),
+  receiverIndex: index("messages_receiver_id_idx").on(table.receiverId),
+}));
+
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type Message = typeof messages.$inferSelect;
+
+// Jobs table for client job requests in Discover Jobs feature
+export const jobStatusEnum = pgEnum("job_status", ["open", "claimed", "completed"]);
+
+export const jobs = pgTable("jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: businessTypeEnum("category").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  status: jobStatusEnum("status").notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  statusIndex: index("jobs_status_idx").on(table.status),
+  categoryIndex: index("jobs_category_idx").on(table.category),
+  cityStateIndex: index("jobs_city_state_idx").on(table.city, table.state),
+}));
+
+export const insertJobSchema = createInsertSchema(jobs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertJob = z.infer<typeof insertJobSchema>;
+export type Job = typeof jobs.$inferSelect;
+
 // Legacy exports for compatibility with auth blueprint
 export const users = stylists;
 export const insertUserSchema = insertStylistSchema;

@@ -1,4 +1,4 @@
-import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, aiUsage, clientVisits, promotionRules, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type AiUsage, type InsertAiUsage, type ClientVisit, type InsertClientVisit, type PromotionRule, type InsertPromotionRule, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
+import { stylists, clients, stylistServices, stylistAvailability, appointments, coupons, couponDeliveries, notifications, aiExecutions, actionLog, aiUsage, clientVisits, promotionRules, messages, jobs, type Stylist, type InsertStylist, type Client, type InsertClient, type UpdateProfile, type StylistService, type InsertStylistService, type StylistAvailability, type InsertStylistAvailability, type Appointment, type InsertAppointment, type Coupon, type InsertCoupon, type CouponDelivery, type InsertCouponDelivery, type Notification, type InsertNotification, type AiExecution, type InsertAiExecution, type ActionLog, type InsertActionLog, type AiUsage, type InsertAiUsage, type ClientVisit, type InsertClientVisit, type PromotionRule, type InsertPromotionRule, type TimeRange, generateHourlySlots, generate30MinuteSlots, filterAvailableSlots, getSlotEndTime, calculateCouponEndDate, isCouponActive } from "@shared/schema";
 import { db } from "./db";
 import { getResendEmailService } from "./resend-email-service";
 import { eq, and, sql, like, ilike, count, asc, desc } from "drizzle-orm";
@@ -138,7 +138,15 @@ export interface IStorage {
   createClientVisit(visit: InsertClientVisit): Promise<ClientVisit>;
   getClientVisits(stylistId: string, clientId?: string): Promise<ClientVisit[]>;
   
-  // Legacy method names for compatibility with auth blueprint
+  // Messages management
+  getMessagesByConversation(conversationId: string, stylistId: string): Promise<any[]>;
+  createMessage(message: any): Promise<any>;
+  
+  // Jobs management
+  createJob(job: any): Promise<any>;
+  getJobsByStatus(status: string, category?: string, city?: string, state?: string): Promise<any[]>;
+  
+  // Legacy methods for compatibility with auth blueprint
   getUser(id: string): Promise<Stylist | undefined>;
   getUserByUsername(username: string): Promise<Stylist | undefined>;
   createUser(user: InsertStylist): Promise<Stylist>;
@@ -216,6 +224,11 @@ export class DatabaseStorage implements IStorage {
     if (typeof profile.yearsOfExperience !== 'undefined') updatePayload.yearsOfExperience = profile.yearsOfExperience;
     if (typeof profile.instagramHandle !== 'undefined') updatePayload.instagramHandle = profile.instagramHandle;
     if (typeof profile.bookingLink !== 'undefined') updatePayload.bookingLink = profile.bookingLink;
+    
+    // Theme and portfolio fields
+    if (typeof profile.themeId !== 'undefined') updatePayload.themeId = profile.themeId;
+    if (typeof profile.portfolioPhotos !== 'undefined') updatePayload.portfolioPhotos = profile.portfolioPhotos;
+    
     // Populate legacy field for backward compatibility with isProfileComplete
     if (typeof profile.services !== 'undefined') updatePayload.servicesOffered = serviceNames;
 
@@ -1682,6 +1695,63 @@ export class DatabaseStorage implements IStorage {
       .from(clientVisits)
       .where(and(...whereConditions))
       .orderBy(desc(clientVisits.visitDate));
+  }
+
+  // Messages management methods
+  async getMessagesByConversation(conversationId: string, stylistId: string): Promise<any[]> {
+    // Get messages for this conversation, ensuring the stylist is involved
+    return await db
+      .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
+        senderId: messages.senderId,
+        senderType: messages.senderType,
+        receiverId: messages.receiverId,
+        receiverType: messages.receiverType,
+        content: messages.content,
+        isRead: messages.isRead,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        // Ensure stylist is either sender or receiver
+        sql`(${messages.senderId} = ${stylistId} OR ${messages.receiverId} = ${stylistId})`
+      ))
+      .orderBy(asc(messages.createdAt));
+  }
+
+  async createMessage(message: any): Promise<any> {
+    const [created] = await db.insert(messages).values(message).returning();
+    return created;
+  }
+
+  // Jobs management methods
+  async createJob(job: any): Promise<any> {
+    const [created] = await db.insert(jobs).values(job).returning();
+    return created;
+  }
+
+  async getJobsByStatus(status: string, category?: string, city?: string, state?: string): Promise<any[]> {
+    let whereConditions = [eq(jobs.status, status as any)];
+    
+    if (category) {
+      whereConditions.push(eq(jobs.category, category as any));
+    }
+    
+    if (city) {
+      whereConditions.push(ilike(jobs.city, `%${city}%`));
+    }
+    
+    if (state) {
+      whereConditions.push(ilike(jobs.state, `%${state}%`));
+    }
+    
+    return await db.select()
+      .from(jobs)
+      .where(and(...whereConditions))
+      .orderBy(desc(jobs.createdAt))
+      .limit(50); // Limit results for performance
   }
 }
 

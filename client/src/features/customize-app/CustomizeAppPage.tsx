@@ -182,7 +182,7 @@ export default function CustomizeAppPage() {
         </div>
 
         <div className="space-y-8">
-            {/* Business Settings Notice */}
+            {/* Business Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -190,17 +190,17 @@ export default function CustomizeAppPage() {
                   <span>Business Information</span>
                 </CardTitle>
                 <CardDescription>
-                  To update your business name, phone, bio, or location, go to Business Settings in the dashboard. These changes will automatically reflect in your app preview.
+                  To update your bio, go to Business Settings. Your bio changes will automatically reflect in your app preview.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() => setLocation("/dashboard/business-settings")}
+                  onClick={() => setLocation("/dashboard/business-settings?from=customize")}
                   className="w-full sm:w-auto"
                   data-testid="button-business-settings"
                 >
                   <Settings className="h-4 w-4 mr-2" />
-                  Go to Business Settings
+                  Business Settings
                 </Button>
               </CardContent>
             </Card>

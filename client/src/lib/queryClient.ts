@@ -11,7 +11,7 @@ async function throwIfResNotOk(res: Response) {
 let csrfTokenCache: string | null = null;
 
 // Helper function to get CSRF token from API
-async function getCsrfToken(): Promise<string | null> {
+export async function getCsrfToken(): Promise<string | null> {
   // Return cached token if available
   if (csrfTokenCache) {
     return csrfTokenCache;
@@ -43,8 +43,10 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const headers: Record<string, string> = {};
-  
-  if (data) {
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+
+  // Only set JSON content-type when the payload is JSON, not FormData
+  if (data && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
   
@@ -59,7 +61,7 @@ export async function apiRequest(
   const res = await fetch(url, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
+    body: data ? (isFormData ? (data as FormData) : JSON.stringify(data)) : undefined,
     credentials: "include",
   });
 
@@ -76,7 +78,7 @@ export async function apiRequest(
         const retryRes = await fetch(url, {
           method,
           headers,
-          body: data ? JSON.stringify(data) : undefined,
+          body: data ? (isFormData ? (data as FormData) : JSON.stringify(data)) : undefined,
           credentials: "include",
         });
         
@@ -114,7 +116,13 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: (query) => {
+        // Public queries should have shorter cache time so theme changes are visible
+        if (query.queryKey[0] === "/api/public/stylist") {
+          return 5 * 60 * 1000; // 5 minutes
+        }
+        return Infinity; // Keep infinite cache for authenticated queries
+      },
       retry: false,
     },
     mutations: {

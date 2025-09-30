@@ -60,7 +60,7 @@ export function setupAuth(app: Express) {
 
     return true;
   };
-  const sessionSettings: session.SessionOptions = {
+    const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
